@@ -1,8 +1,8 @@
-name: Dev Build
+name: Experimental Build
 
 on:
   push:
-    branches: [main]
+    branches: [feature/experimental]
 
 jobs:
   # Run tests first - gate the build
@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 0
       - id: version
-        run: echo "version=0.1.$(git rev-list --count HEAD)" >> $GITHUB_OUTPUT
+        run: echo "version=0.1.$(date -u +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
 
   # Build dev version
   build-dev:
@@ -28,18 +28,20 @@ jobs:
     with:
       version: ${{ needs.prepare.outputs.version }}-dev
       git_sha: ${{ github.sha }}
+      ref: refs/heads/feature/experimental
 
-  # Build RC version (same commit, stable version number)
-  build-rc:
+  # Build release version (same commit, stable version number)
+  build-release:
     needs: prepare
     uses: ./.github/workflows/build.yml
     with:
       version: ${{ needs.prepare.outputs.version }}
       git_sha: ${{ github.sha }}
+      ref: refs/heads/feature/experimental
 
   # Generate release notes with AI (optional - only if auth is configured)
   generate-notes:
-    needs: [prepare, build-rc]
+    needs: [prepare, build-release]
     uses: ./.github/workflows/generate-release-notes.yml
     with:
       version: ${{ needs.prepare.outputs.version }}
@@ -48,8 +50,8 @@ jobs:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
   release:
-    needs: [prepare, build-dev, build-rc, generate-notes]
-    if: ${{ always() && needs.build-dev.result == 'success' && needs.build-rc.result == 'success' }}
+    needs: [prepare, build-dev, build-release, generate-notes]
+    if: ${{ always() && needs.build-dev.result == 'success' && needs.build-release.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -61,15 +63,15 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: dev-artifacts
-          pattern: tally-*-dev
+          pattern: tally-*-experimental-dev
           merge-multiple: false
 
       # Download RC artifacts
       - name: Download RC artifacts
         uses: actions/download-artifact@v4
         with:
-          path: rc-artifacts
-          pattern: tally-*-rc
+          path: release-artifacts
+          pattern: tally-*-experimental-release
           merge-multiple: false
 
       - name: List artifacts
@@ -77,8 +79,8 @@ jobs:
           echo "Dev artifacts:"
           find dev-artifacts -type f
           echo ""
-          echo "RC artifacts:"
-          find rc-artifacts -type f
+          echo "Release artifacts:"
+          find release-artifacts -type f
 
       # Delete old dev release and create new one
       - name: Create dev release
@@ -90,39 +92,29 @@ jobs:
           gh release delete dev --cleanup-tag --yes || true
 
           cat > notes.md << EOF
-          Latest build from main branch
+          Latest prerelease build from feature/experimental
 
           **Version:** ${VERSION}-dev
           **Commit:** ${SHA}
 
-          ### Install
+          ### Update
 
-          **Update existing installation:**
           \`\`\`bash
           tally update --prerelease
           \`\`\`
 
-          **Linux / macOS:**
-          \`\`\`bash
-          curl -fsSL https://tallyai.money/install.sh | bash -s -- --prerelease
-          \`\`\`
-
-          **Windows PowerShell:**
-          \`\`\`powershell
-          iex "& { \$(irm https://tallyai.money/install.ps1) } -Prerelease"
-          \`\`\`
-
-          Or download the zip for your platform below.
+          Download the zip for your platform from this prerelease if you need a fresh install.
           EOF
 
           gh release create dev \
-            --title "Development Build (${VERSION}-dev)" \
+            --target "${SHA}" \
+            --title "Experimental Build (${VERSION}-dev)" \
             --notes-file notes.md \
             --prerelease \
             dev-artifacts/*/*.zip
 
       # Delete old draft releases and create new one
-      - name: Create draft RC release
+      - name: Create draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.prepare.outputs.version }}
@@ -146,24 +138,27 @@ jobs:
           ---
 
           **Commit:** ${SHA}
-          **E2E Status:** Pending...
+          **Branch:** feature/experimental
+          **Validation:** Pending publish
           EOF
           else
             echo "No AI notes available, using default"
             cat > notes.md << EOF
-          Release candidate - pending publish
+          Experimental release candidate - pending publish
 
           **Commit:** ${SHA}
-          **E2E Status:** Pending...
+          **Branch:** feature/experimental
+          **Validation:** Pending publish
           EOF
           fi
 
           # Create new draft
           gh release create "v${VERSION}" \
-            --title "Tally v${VERSION}" \
+            --target "${SHA}" \
+            --title "Tally Experimental v${VERSION}" \
             --notes-file notes.md \
             --draft \
-            rc-artifacts/*/*.zip
+            release-artifacts/*/*.zip
 
   # Run E2E smoke tests after release (tests the published dev build)
   e2e-tests:
