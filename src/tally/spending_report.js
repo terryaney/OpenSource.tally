@@ -565,6 +565,12 @@ createApp({
                     let subcatTotal = 0;
 
                     for (const [merchantId, merchant] of Object.entries(subcat.merchants || {})) {
+                        // Skip non-spending merchants (transfer/income/investment) - mirrors
+                        // the backend's classify_by_sections exclusion logic so that category
+                        // totals are not distorted and positiveCategoryView does not suppress
+                        // legitimate spending categories.
+                        if (isExcludedFromSpending(merchant.tags)) continue;
+
                         // Filter transactions
                         const filteredTxns = (merchant.transactions || []).filter(txn =>
                             passesFilters(txn, merchant)

@@ -2125,3 +2125,149 @@ class TestTransformDirective:
 
         badge = txn_row.locator(".extra-fields-trigger")
         expect(badge).not_to_be_visible()
+
+
+# =============================================================================
+# Transfer/income/investment tag exclusion from Merchant/Subcategory views
+# =============================================================================
+
+@pytest.fixture(scope="module")
+def transfer_mixed_category_report_path(tmp_path_factory):
+    """Generate a report where a transfer-tagged merchant shares a category with
+    regular spending merchants.
+
+    This reproduces the bug in terryaney/OpenSource.tally#11 / #10:
+    A merchant tagged 'transfer' with a large negative amount inside a category
+    that also contains regular positive spending used to suppress the entire
+    category from the Merchant/Subcategory views.
+
+    Fixture data:
+    - Category 'College':
+        - Tuition Payment  (no special tag)  +400.00  x2  = $800 spending
+        - Goldman Sachs 529 (tag: transfer)  -600.00  x1  = transfer (non-spending)
+
+    Expected behaviour after fix:
+    - 'College' category IS visible in Merchant/Subcategory views
+    - 'Tuition Payment' merchant IS visible with total ~$800
+    - 'Goldman Sachs 529' is NOT visible in Merchant/Subcategory views
+    - Category total reflects only spending ($800), not the transfer (-$600)
+    """
+    tmp_dir = tmp_path_factory.mktemp("transfer_mixed_category_test")
+    config_dir = tmp_dir / "config"
+    data_dir = tmp_dir / "data"
+    output_dir = tmp_dir / "output"
+
+    config_dir.mkdir()
+    data_dir.mkdir()
+    output_dir.mkdir()
+
+    csv_content = """Date,Description,Amount
+01/10/2024,TUITION PAYMENT,400.00
+02/10/2024,TUITION PAYMENT,400.00
+01/20/2024,GOLDMAN SACHS 529,-600.00
+"""
+    (data_dir / "transactions.csv").write_text(csv_content)
+
+    settings_content = """year: 2024
+
+data_sources:
+  - name: Test
+    file: data/transactions.csv
+    format: "{date},{description},{amount}"
+
+merchants_file: config/merchants.rules
+"""
+    (config_dir / "settings.yaml").write_text(settings_content)
+
+    rules_content = """[Tuition Payment]
+match: contains("TUITION")
+category: College
+subcategory: Tuition
+
+[Goldman Sachs 529]
+match: contains("GOLDMAN SACHS")
+category: College
+subcategory: Tuition
+tags: transfer
+"""
+    (config_dir / "merchants.rules").write_text(rules_content)
+
+    report_file = output_dir / "report.html"
+    result = subprocess.run(
+        ["uv", "run", "tally", "run", "-o", str(report_file), str(config_dir)],
+        capture_output=True,
+        text=True,
+        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
+
+    if result.returncode != 0:
+        pytest.fail(f"Failed to generate report: {result.stderr}")
+
+    return str(report_file)
+
+
+class TestTransferTagExclusionFromCategoryView:
+    """Transfer/income/investment-tagged merchants must not pollute spending views.
+
+    Covers terryaney/OpenSource.tally#11 (and the duplicate #10):
+    a transfer-tagged merchant with a large negative amount used to suppress the
+    entire category from Merchant/Subcategory views.
+    """
+
+    def test_category_visible_in_merchant_view(
+        self, page: Page, transfer_mixed_category_report_path
+    ):
+        """Category containing both spending and transfer-tagged merchant is visible."""
+        page.goto(f"file://{transfer_mixed_category_report_path}")
+        page.get_by_role("button", name="Merchant").click()
+        expect(page.get_by_test_id("section-cat-College")).to_be_visible()
+
+    def test_spending_merchant_visible_in_merchant_view(
+        self, page: Page, transfer_mixed_category_report_path
+    ):
+        """Regular spending merchant is visible in Merchant view."""
+        page.goto(f"file://{transfer_mixed_category_report_path}")
+        page.get_by_role("button", name="Merchant").click()
+        expect(page.get_by_test_id("merchant-row-Tuition_Payment")).to_be_visible()
+
+    def test_transfer_merchant_hidden_in_merchant_view(
+        self, page: Page, transfer_mixed_category_report_path
+    ):
+        """Transfer-tagged merchant does NOT appear in Merchant view."""
+        page.goto(f"file://{transfer_mixed_category_report_path}")
+        page.get_by_role("button", name="Merchant").click()
+        expect(page.get_by_test_id("merchant-row-Goldman_Sachs_529")).not_to_be_visible()
+
+    def test_category_total_not_distorted_by_transfer(
+        self, page: Page, transfer_mixed_category_report_path
+    ):
+        """Category total reflects only spending (Tuition Payment $800), not the transfer."""
+        page.goto(f"file://{transfer_mixed_category_report_path}")
+        page.get_by_role("button", name="Merchant").click()
+
+        college_section = page.get_by_test_id("section-cat-College")
+        # The total shown should be $800 (not $200 = $800-$600)
+        expect(college_section).to_contain_text("800")
+
+    def test_category_visible_in_subcategory_view(
+        self, page: Page, transfer_mixed_category_report_path
+    ):
+        """Category is also visible in Subcategory view after the fix."""
+        page.goto(f"file://{transfer_mixed_category_report_path}")
+        page.get_by_role("button", name="Subcategory").click()
+        expect(page.get_by_test_id("section-cat-College")).to_be_visible()
+
+    def test_search_for_spending_merchant_returns_results(
+        self, page: Page, transfer_mixed_category_report_path
+    ):
+        """Searching for the spending merchant returns visible results (category not suppressed)."""
+        page.goto(f"file://{transfer_mixed_category_report_path}")
+        page.get_by_role("button", name="Merchant").click()
+
+        # Type in search box to filter by merchant
+        search = page.get_by_test_id("search-input")
+        search.fill("Tuition")
+        page.wait_for_timeout(300)
+
+        # Tuition Payment should still be visible
+        expect(page.get_by_test_id("merchant-row-Tuition_Payment")).to_be_visible()
