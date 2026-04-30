@@ -1599,6 +1599,7 @@ class TestSectionViews:
         """Transfer-tagged merchants should still be eligible for section filters."""
         by_merchant = {
             'University of Minnesota': {
+                'name': 'University of Minnesota',
                 'category': 'College',
                 'subcategory': 'Tuition',
                 'tags': ['transfer'],
@@ -1609,6 +1610,7 @@ class TestSectionViews:
                 'monthly_value': 83.33,
             },
             'Local Grocery': {
+                'name': 'Local Grocery',
                 'category': 'Food',
                 'subcategory': 'Grocery',
                 'tags': [],
