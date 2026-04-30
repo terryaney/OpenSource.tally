@@ -581,7 +581,11 @@ createApp({
                                 filteredCount: filteredTxns.length,
                                 filteredMonths: months.size
                             };
-                            subcatTotal += filteredTotal;
+                            // Exclude transfer/income/investment from spending totals
+                            // (mirrors grandTotal computation and Python typeTotals.spending logic)
+                            if (!isExcludedFromSpending(merchant.tags || [])) {
+                                subcatTotal += filteredTotal;
+                            }
                         }
                     }
 
