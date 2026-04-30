@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       version:
-        description: 'Version string to inject (e.g., 0.1.123 or 0.0.18-abc1234)'
+        description: 'Version string to inject (e.g., 0.1.20260428132045 or 0.1.20260428132045-dev)'
         required: true
         type: string
       git_sha:
@@ -56,7 +56,7 @@ jobs:
         run: |
           sed -i.bak "s/^VERSION = .*/VERSION = \"${{ inputs.version }}\"/" src/tally/_version.py
           sed -i.bak "s/^GIT_SHA = .*/GIT_SHA = \"${{ inputs.git_sha }}\"/" src/tally/_version.py
-          sed -i.bak "s|^REPO_URL = .*|REPO_URL = \"https://github.com/${{ github.repository }}\"|" src/tally/_version.py
+          sed -i.bak "s|^REPO_URL = .*|REPO_URL = \"https://github.com/terryaney/OpenSource.tally\"|" src/tally/_version.py
           rm -f src/tally/_version.py.bak
           cat src/tally/_version.py
         shell: bash
@@ -92,5 +92,5 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tally-${{ matrix.platform }}-${{ contains(inputs.version, 'dev') && 'dev' || 'rc' }}
+          name: tally-${{ matrix.platform }}-${{ contains(inputs.version, 'dev') && 'experimental-dev' || 'experimental-release' }}
           path: dist/tally-${{ matrix.platform }}.zip

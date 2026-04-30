@@ -30,7 +30,7 @@ jobs:
           DRAFT=$(gh release list --json tagName,isDraft \
             -q '[.[] | select(.isDraft)] | .[0].tagName')
           if [ -z "$DRAFT" ] || [ "$DRAFT" = "null" ]; then
-            echo "::error::No draft release found! Push to main first to create a release candidate."
+            echo "::error::No draft release found! Push to feature/experimental first to create a release candidate."
             exit 1
           fi
           echo "tag=$DRAFT" >> $GITHUB_OUTPUT
@@ -48,29 +48,51 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Verify Dev Build passed
+      - name: Verify Experimental Build passed
         run: |
-          echo "Checking latest Dev Build status on main branch..."
+          echo "Checking latest Experimental Build status on feature/experimental..."
 
-          # Get the latest Dev Build run on main branch
-          # Dev Build includes E2E tests, so if it's green, everything passed
           STATUS=$(gh run list \
-            --branch main \
-            --workflow "Dev Build" \
-            --json conclusion,status \
+            --branch feature/experimental \
+            --workflow "Experimental Build" \
+            --json conclusion \
             --limit 1 \
             -q '.[0].conclusion')
 
-          echo "Dev Build conclusion: $STATUS"
+          HEAD_SHA=$(gh run list \
+            --branch feature/experimental \
+            --workflow "Experimental Build" \
+            --json headSha \
+            --limit 1 \
+            -q '.[0].headSha')
 
-          if [ "$STATUS" != "success" ]; then
-            echo "::error::Dev Build did not pass on main branch"
-            echo "Status was: $STATUS"
-            echo ""
-            echo "The release candidate cannot be published until Dev Build (including E2E tests) passes."
+          TARGET="${{ steps.info.outputs.sha }}"
+
+          echo "Experimental Build conclusion: $STATUS"
+          echo "Latest Experimental Build SHA: $HEAD_SHA"
+          echo "Draft target: $TARGET"
+
+          if [ -z "$STATUS" ] || [ "$STATUS" = "null" ]; then
+            echo "::error::No Experimental Build run found for feature/experimental"
             exit 1
           fi
-          echo "Dev Build passed (includes E2E tests)!"
+
+          if [ "$STATUS" != "success" ]; then
+            echo "::error::Experimental Build did not pass on feature/experimental"
+            echo "Status was: $STATUS"
+            echo ""
+            echo "The release candidate cannot be published until Experimental Build (including E2E tests) passes."
+            exit 1
+          fi
+
+          if [ -n "$HEAD_SHA" ] && [ "$HEAD_SHA" != "null" ] && [ "$TARGET" != "$HEAD_SHA" ]; then
+            echo "::error::Draft release does not match the latest successful Experimental Build commit"
+            echo "Draft target: $TARGET"
+            echo "Latest successful build: $HEAD_SHA"
+            exit 1
+          fi
+
+          echo "Experimental Build passed and matches the draft release commit."
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -114,26 +136,16 @@ jobs:
             fi
             echo "### Update"
             echo ""
-            echo "Already have tally installed? Just run:"
+            echo "Already have this experimental fork installed? Just run:"
             echo '```bash'
             echo "tally update"
             echo '```'
             echo ""
             echo "### Install"
             echo ""
-            echo "**Linux / macOS:**"
-            echo '```bash'
-            echo "curl -fsSL https://tallyai.money/install.sh | bash"
-            echo '```'
+            echo "Download the zip for your platform from this release."
             echo ""
-            echo "**Windows PowerShell:**"
-            echo '```powershell'
-            echo "irm https://tallyai.money/install.ps1 | iex"
-            echo '```'
-            echo ""
-            echo "Or download the zip for your platform below."
-            echo ""
-            echo "See https://tallyai.money for more info."
+            echo "Repository: https://github.com/${{ github.repository }}"
           } > body.md
 
           echo "Release body:"
@@ -142,7 +154,7 @@ jobs:
       - name: Publish release
         run: |
           gh release edit ${{ steps.draft.outputs.tag }} \
-            --title "Tally ${{ steps.draft.outputs.tag }}" \
+            --title "Tally Experimental ${{ steps.draft.outputs.tag }}" \
             --notes-file body.md \
             --draft=false \
             --latest
