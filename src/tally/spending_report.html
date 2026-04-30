@@ -176,6 +176,13 @@
                         @click="currentView = 'section'">
                     View
                 </button>
+                <button v-if="currentView === 'category'"
+                        class="toggle-negatives"
+                        :class="{ active: showNegativeCategories }"
+                        :title="showNegativeCategories ? 'Hide categories with negative totals' : 'Show categories with negative totals'"
+                        @click="showNegativeCategories = !showNegativeCategories">
+                    {{ showNegativeCategories ? '−' : '+' }}
+                </button>
             </div>
 
             <!-- Section View -->

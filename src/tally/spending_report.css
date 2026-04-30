@@ -1442,5 +1442,22 @@ section:nth-child(5) { animation-delay: 0.4s; }
     border-color: var(--accent-blue);
     color: white;
 }
+.view-toggle button.toggle-negatives {
+    margin-left: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-color: var(--border-medium);
+    color: var(--text-muted);
+    font-size: 1rem;
+    font-weight: 600;
+}
+.view-toggle button.toggle-negatives:hover {
+    border-color: var(--accent-blue);
+    color: var(--text-primary);
+}
+.view-toggle button.toggle-negatives.active {
+    background: var(--accent-orange, #f59e0b);
+    border-color: var(--accent-orange, #f59e0b);
+    color: white;
+}
 
 

@@ -485,6 +485,7 @@ createApp({
         const currentView = ref('category'); // 'category' or 'section'
         const groupByMode = ref('merchant'); // 'merchant' or 'subcategory'
         const sortConfig = reactive({}); // { 'cat:Food': { column: 'total', dir: 'desc' } }
+        const showNegativeCategories = ref(false); // show categories with negative filteredTotal
 
         // Chart refs
         const monthlyChart = ref(null);
@@ -581,11 +582,7 @@ createApp({
                                 filteredCount: filteredTxns.length,
                                 filteredMonths: months.size
                             };
-                            // Exclude transfer/income/investment from spending totals
-                            // (mirrors grandTotal computation and Python typeTotals.spending logic)
-                            if (!isExcludedFromSpending(merchant.tags || [])) {
-                                subcatTotal += filteredTotal;
-                            }
+                            subcatTotal += filteredTotal;
                         }
                     }
 
@@ -664,10 +661,11 @@ createApp({
 
         // Categories to display - show all with non-negative totals
         // Negative totals (credits/refunds) are shown in the Credits section
+        // When showNegativeCategories is enabled, show all categories regardless of total sign
         const positiveCategoryView = computed(() => {
             const result = {};
             for (const [catName, category] of Object.entries(filteredCategoryView.value)) {
-                if (category.filteredTotal >= 0) {
+                if (showNegativeCategories.value || category.filteredTotal >= 0) {
                     result[catName] = category;
                 }
             }
@@ -1991,7 +1989,7 @@ createApp({
             // State
             activeFilters, expandedMerchants, extraFieldMatches, collapsedSections, searchQuery,
             showAutocomplete, autocompleteIndex, isScrolled, isDarkTheme, chartsCollapsed, helpCollapsed,
-            currentView, groupByMode, sortConfig,
+            currentView, groupByMode, sortConfig, showNegativeCategories,
             // Refs
             monthlyChart, categoryPieChart, categoryByMonthChart,
             // Computed
