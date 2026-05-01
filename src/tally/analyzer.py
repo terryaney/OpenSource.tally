@@ -228,7 +228,7 @@ def classify_by_sections(by_merchant, sections_config, num_months=12):
     # Convert by_merchant to the format expected by section_engine
     merchant_groups = []
     for merchant_key, data in by_merchant.items():
-        merchant_name = data.get('name', '')
+        merchant_name = data.get('name', merchant_key)
 
         # Build transactions list for the section filter
         # The 'transactions' key already has the individual transactions
