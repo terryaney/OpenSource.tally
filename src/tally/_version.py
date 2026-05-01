@@ -1,7 +1,7 @@
 # This file is auto-generated during build. Do not edit manually.
 VERSION = "0.1.0"
 GIT_SHA = "unknown"
-REPO_URL = "https://github.com/davidfowl/tally"
+REPO_URL = "https://github.com/terryaney/OpenSource.tally"
 
 
 def check_for_updates(timeout: float = 2.0) -> dict | None:
