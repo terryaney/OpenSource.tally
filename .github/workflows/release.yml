@@ -54,14 +54,14 @@ jobs:
 
           STATUS=$(gh run list \
             --branch feature/experimental \
-            --workflow "Experimental Build" \
+            --workflow ".github/workflows/dev-build.yml" \
             --json conclusion \
             --limit 1 \
             -q '.[0].conclusion')
 
           HEAD_SHA=$(gh run list \
             --branch feature/experimental \
-            --workflow "Experimental Build" \
+            --workflow ".github/workflows/dev-build.yml" \
             --json headSha \
             --limit 1 \
             -q '.[0].headSha')
