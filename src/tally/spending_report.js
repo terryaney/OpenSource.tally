@@ -193,7 +193,7 @@ const MerchantSection = defineComponent({
                                     @click="toggleExpand(item.id || idx)">
                                     <td class="merchant" :class="{ clickable: categoryMode }">
                                         <span class="chevron">{{ isExpanded(item.id || idx) ? '▼' : '▶' }}</span>
-                                        <span class="merchant-name" @click.stop="categoryMode ? addFilter(item.id, subcategoryMode ? 'subcategory' : 'merchant', item.displayName) : null">
+                                        <span class="merchant-name" @click.stop="categoryMode ? addFilter(subcategoryMode ? item.id : item.displayName, subcategoryMode ? 'subcategory' : 'merchant', item.displayName) : null">
                                             {{ item.displayName || item.merchant }}
                                         </span>
                                         <span v-if="item.matchInfo || item.viewInfo" class="match-info-trigger"
@@ -925,12 +925,11 @@ createApp({
             for (const cat of Object.values(filteredCategoryView.value)) {
                 for (const subcat of Object.values(cat.filteredSubcategories || cat.subcategories || {})) {
                     for (const merchant of Object.values(subcat.filteredMerchants || subcat.merchants || {})) {
-                        const tags = merchant.tags || [];
                         const txns = merchant.filteredTxns || merchant.transactions || [];
 
                         for (const txn of txns) {
                             // Use centralized categorizeAmount() for consistent classification
-                            const c = categorizeAmount(txn.amount || 0, tags);
+                            const c = categorizeAmount(txn.amount || 0, txn.tags || []);
                             totals.income += c.income;
                             totals.investment += c.investment;
                             totals.transferIn += c.transferIn;
@@ -1097,11 +1096,9 @@ createApp({
             for (const [catName, category] of Object.entries(categoryView)) {
                 for (const subcat of Object.values(category.filteredSubcategories || {})) {
                     for (const merchant of Object.values(subcat.filteredMerchants || {})) {
-                        const tags = merchant.tags || [];
-
                         for (const txn of merchant.filteredTxns || []) {
                             // Use centralized categorization
-                            const c = categorizeAmount(txn.amount, tags);
+                            const c = categorizeAmount(txn.amount, txn.tags || []);
 
                             // Track spending by month and category
                             if (c.spending > 0) {
@@ -1217,13 +1214,16 @@ createApp({
             for (const category of Object.values(categoryView)) {
                 for (const subcat of Object.values(category.subcategories || {})) {
                     for (const [id, merchant] of Object.entries(subcat.merchants || {})) {
-                        if (!seenMerchants.has(id)) {
-                            seenMerchants.add(id);
+                        const merchantName = (merchant.displayName || merchant.merchant || '').trim();
+                        const merchantKey = merchantName.toLowerCase();
+                        if (merchantName && !seenMerchants.has(merchantKey)) {
+                            seenMerchants.add(merchantKey);
                             items.push({
                                 type: 'merchant',
-                                filterText: id,
-                                displayText: merchant.displayName,
-                                id: `m:${id}`
+                                // Merchant filter is logical merchant identity, not category-specific row ID.
+                                filterText: merchantName,
+                                displayText: merchantName,
+                                id: `m:${merchantName}`
                             });
                         }
                     }
