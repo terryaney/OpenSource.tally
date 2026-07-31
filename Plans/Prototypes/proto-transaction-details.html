@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transaction Details — Prototype</title>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<style>
+/* ============================================================
+   THEME VARS — copied verbatim from src/tally/spending_report.css
+   (+ new --bg-sticky opaque fill for pinned header/footer)
+   ============================================================ */
+:root {
+    --bg-gradient-start: #1a1a2e;
+    --bg-gradient-end: #16213e;
+    --bg-card: rgba(255,255,255,0.05);
+    --bg-card-hover: rgba(255,255,255,0.08);
+    --bg-input: rgba(255,255,255,0.05);
+    --bg-input-focus: rgba(255,255,255,0.08);
+    --bg-table: rgba(255,255,255,0.03);
+    --bg-table-header: rgba(255,255,255,0.05);
+    --bg-table-hover: rgba(255,255,255,0.03);
+    --bg-txn-row: rgba(0,0,0,0.2);
+    --bg-scrollbar-track: rgba(255,255,255,0.05);
+    --bg-scrollbar-thumb: rgba(255,255,255,0.2);
+    --bg-scrollbar-thumb-hover: rgba(255,255,255,0.3);
+    --text-primary: #e8e8e8;
+    --text-secondary: #888;
+    --text-muted: #666;
+    --border-light: rgba(255,255,255,0.1);
+    --border-medium: rgba(255,255,255,0.2);
+    --border-table: rgba(255,255,255,0.05);
+    --accent-blue: #4facfe;
+    --accent-cyan: #4dffd2;
+    --accent-orange: #ffa94d;
+    --accent-pink: #f093fb;
+    --accent-pink-dark: #fa709a;
+    --accent-purple: #9b59b6;
+    /* NEW: opaque fill for sticky header/footer so scrolled rows don't bleed through */
+    --bg-sticky: #23263f;
+}
+[data-theme="light"] {
+    --bg-gradient-start: #f0f4f8;
+    --bg-gradient-end: #ffffff;
+    --bg-card: rgba(0,0,0,0.03);
+    --bg-card-hover: rgba(0,0,0,0.06);
+    --bg-table: rgba(0,0,0,0.02);
+    --bg-table-header: rgba(0,0,0,0.04);
+    --bg-table-hover: rgba(0,0,0,0.03);
+    --bg-txn-row: rgba(0,0,0,0.04);
+    --bg-scrollbar-track: rgba(0,0,0,0.05);
+    --bg-scrollbar-thumb: rgba(0,0,0,0.15);
+    --bg-scrollbar-thumb-hover: rgba(0,0,0,0.25);
+    --text-primary: #1a1a2e;
+    --text-secondary: #555;
+    --text-muted: #777;
+    --border-light: rgba(0,0,0,0.1);
+    --border-medium: rgba(0,0,0,0.15);
+    --border-table: rgba(0,0,0,0.06);
+    --bg-sticky: #eaeef4;
+}
+
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, var(--bg-gradient-start), var(--bg-gradient-end));
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 2rem;
+    transition: background 0.3s;
+}
+.wrap { max-width: 1100px; margin: 0 auto; }
+h1.page-title { font-weight: 300; font-size: 1.75rem; margin: 0 0 0.25rem; }
+.page-sub { color: var(--text-secondary); margin: 0 0 1.5rem; font-size: 0.9rem; }
+
+/* ---------- Slim prototype panel (theme toggle only) ---------- */
+.proto-panel {
+    display: flex; align-items: center; gap: 0.6rem;
+    margin-bottom: 1.5rem; font-size: 0.75rem; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 1px;
+}
+.proto-seg { display: flex; gap: 0.25rem; }
+.proto-seg button {
+    padding: 0.3rem 0.7rem; font-size: 0.75rem;
+    border: 1px solid var(--border-medium); background: transparent;
+    color: var(--text-secondary); border-radius: 6px; cursor: pointer;
+    text-transform: none; letter-spacing: normal;
+}
+.proto-seg button.on { background: var(--accent-blue); border-color: var(--accent-blue); color: #fff; }
+
+/* ============================================================
+   TRANSACTION DETAILS CONTAINER (new peer card)
+   Collapses to HEADER ONLY — no empty band.
+   ============================================================ */
+.details-section {
+    background: var(--bg-card);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    transition: padding 0.3s ease;
+}
+.details-section > .section-header {
+    cursor: pointer;
+    margin: -1.5rem -1.5rem 0.75rem -1.5rem;   /* bug #1: tighter gap to button row */
+    padding: 1rem 1.5rem;
+    border-radius: 16px 16px 0 0;
+    display: flex; align-items: center; justify-content: space-between;
+    transition: background 0.2s, margin 0.3s ease;
+}
+.details-section > .section-header:hover { background: var(--bg-card-hover); }
+.details-section > .section-header h2 {
+    font-size: 1.25rem; font-weight: 500; margin: 0; color: var(--text-primary);
+    display: flex; align-items: center; gap: 0.6rem;
+}
+.details-section > .section-header .toggle { display: inline-block; transition: transform 0.25s; color: var(--text-muted); font-size: 1rem; }
+.details-section > .section-header .header-count { font-size: 0.85rem; color: var(--text-muted); font-weight: 400; }
+.details-section.collapsed { padding-bottom: 0; }
+.details-section.collapsed > .section-header { margin-bottom: 0; border-radius: 16px; }
+.details-body {
+    overflow: hidden;
+    transition: max-height 0.4s ease-out, opacity 0.3s ease-out;
+    max-height: 6000px; opacity: 1;
+}
+.details-section.collapsed .details-body { max-height: 0; opacity: 0; }
+
+/* ---------- Button row: LEFT-aligned + right control zone ---------- */
+.view-toggle {
+    display: flex; justify-content: flex-start; align-items: center;
+    gap: 0.5rem; margin-bottom: 1.5rem;
+}
+.view-toggle button {
+    padding: 0.5rem 1.25rem; border-radius: 8px;
+    border: 1px solid var(--border-medium); background: var(--bg-card);
+    color: var(--text-secondary); font-size: 0.9rem; font-weight: 500;
+    cursor: pointer; transition: all 0.2s;
+}
+.view-toggle button:hover { background: var(--bg-card-hover); border-color: var(--accent-blue); color: var(--text-primary); }
+.view-toggle button.active { background: var(--accent-blue); border-color: var(--accent-blue); color: #fff; }
+.collapse-controls { margin-left: auto; display: flex; align-items: center; gap: 0.4rem; }
+.icon-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+    height: 36px; min-width: 36px; padding: 0 0.75rem;
+    border-radius: 8px; border: 1px solid var(--border-medium);
+    background: var(--bg-card); color: var(--text-secondary);
+    cursor: pointer; transition: all 0.2s; font-size: 0.85rem;
+}
+.icon-btn:hover { background: var(--bg-card-hover); border-color: var(--accent-blue); color: var(--text-primary); }
+.icon-btn svg { width: 16px; height: 16px; display: block; }
+
+/* ============================================================
+   CATEGORY = ONE BORDERED CONTAINER (header grows border around table)
+   ============================================================ */
+.category-section {
+    border: 1px solid var(--border-medium);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--bg-table);
+    margin-bottom: 1rem;
+}
+.category-section .section-header {
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; padding: 1rem;
+    border-bottom: 1px solid var(--border-medium);   /* divider grows into the table */
+    transition: background 0.2s;
+}
+.category-section.is-collapsed .section-header { border-bottom: none; }
+.category-section .section-header:hover { background: var(--bg-card-hover); }
+.category-section .section-header h2 {
+    font-size: 1.15rem; font-weight: 500; margin: 0;
+    display: flex; align-items: center; gap: 0.75rem;
+    color: var(--text-primary);                       /* was --accent-blue */
+}
+.category-section .section-header .toggle { font-size: 1.3rem; transition: transform 0.3s; color: var(--text-muted); }
+.category-section .section-header .section-total { font-family: 'SF Mono', Monaco, monospace; font-size: 1.05rem; color: var(--text-secondary); }
+.category-section .section-header .section-monthly { color: var(--accent-blue); }
+.category-section .section-header .section-ytd { color: var(--text-primary); }
+.category-section .section-header .section-pct { font-size: 0.85rem; color: var(--text-muted); margin-left: 0.4rem; }
+
+/* Glowing color dot (ring) */
+.category-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    display: inline-block; flex-shrink: 0;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--dot-color, #4facfe) 28%, transparent),
+                0 0 8px 1px var(--dot-color, #4facfe);
+}
+
+/* ---------- Scroll area: only tbody rows scroll ---------- */
+.section-content { overflow: hidden; transition: max-height 0.4s ease-out, opacity 0.3s ease-out; max-height: 4000px; opacity: 1; }
+.category-section.is-collapsed .section-content { max-height: 0; opacity: 0; }
+
+.table-wrapper { max-height: 320px; overflow-y: auto; overflow-x: hidden; }
+.table-wrapper::-webkit-scrollbar { width: 8px; }
+.table-wrapper::-webkit-scrollbar-track { background: var(--bg-scrollbar-track); }
+.table-wrapper::-webkit-scrollbar-thumb { background: var(--bg-scrollbar-thumb); border-radius: 4px; }
+.table-wrapper::-webkit-scrollbar-thumb:hover { background: var(--bg-scrollbar-thumb-hover); }
+
+table { width: 100%; border-collapse: collapse; background: var(--bg-table); }
+
+/* PINNED header — opaque so scrolled rows don't bleed through (bug #3) */
+thead th {
+    position: sticky; top: 0; z-index: 3;
+    text-align: left; padding: 0.8rem 1rem;
+    background: var(--bg-sticky);
+    font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text-secondary); cursor: pointer; user-select: none;
+    box-shadow: inset 0 -1px 0 var(--border-medium);
+}
+thead th:hover { background: var(--bg-card-hover); }
+
+td { padding: 0.7rem 1rem; border-top: 1px solid var(--border-table); }
+tbody tr:hover td { background: var(--bg-table-hover); }
+.col-count { text-align: center; }   /* Count centered (th + td) */
+.col-total { text-align: right; }     /* Total right (th + td) */
+.col-pct   { text-align: right; }     /* %     right (th + td) */
+.merchant { font-weight: 500; }
+.money { font-family: 'SF Mono', Monaco, monospace; }
+.pct { font-family: 'SF Mono', Monaco, monospace; color: var(--text-secondary); font-size: 0.85rem; }
+.merchant-row { cursor: pointer; }
+.merchant-row .chevron { display: inline-block; width: 1rem; color: var(--text-muted); font-size: 0.7rem; }
+.tag-badge {
+    display: inline-block; padding: 0.05rem 0.45rem; border-radius: 999px;
+    font-size: 0.7rem; margin-right: 0.25rem;
+    background: var(--bg-card-hover); color: var(--text-secondary);
+    border: 1px solid var(--border-light);
+}
+
+/* PINNED footer total — opaque, sticks to bottom of scroll box (bug #3) */
+tfoot .total-row td {
+    position: sticky; bottom: 0; z-index: 3;
+    font-weight: 600; background: var(--bg-sticky);
+    box-shadow: inset 0 2px 0 var(--border-light);
+    border-top: none;
+}
+
+/* ---------- Nested transaction rows (CURRENT style) ---------- */
+tr.txn-row.hidden { display: none; }
+tr.txn-row td { padding: 0; border-top: 1px solid var(--border-table); }
+.txn-detail { display: grid; grid-template-columns: 5.5rem 1fr auto; gap: 0.5rem 1rem; padding: 0.5rem 1rem 0.5rem 2rem; background: var(--bg-txn-row); font-size: 0.85rem; }
+.txn-detail .txn-date { color: var(--text-muted); font-family: 'SF Mono', Monaco, monospace; }
+.txn-detail .txn-amt { font-family: 'SF Mono', Monaco, monospace; text-align: right; }
+
+.hint { font-size: 0.8rem; color: var(--text-muted); margin: 0.5rem 0 0; }
+</style>
+</head>
+<body>
+<div id="app" class="wrap">
+    <h1 class="page-title">Spending Summary</h1>
+    <p class="page-sub">Prototype — Transaction Details container &amp; collapser polish.</p>
+
+    <div class="proto-panel">
+        <span>Theme</span>
+        <div class="proto-seg">
+            <button :class="{on: theme==='dark'}" @click="theme='dark'">Dark</button>
+            <button :class="{on: theme==='light'}" @click="theme='light'">Light</button>
+        </div>
+    </div>
+
+    <!-- ===== TRANSACTION DETAILS CONTAINER ===== -->
+    <div class="details-section" :class="{ collapsed: detailsCollapsed }">
+        <div class="section-header" @click="detailsCollapsed = !detailsCollapsed">
+            <h2>
+                <span class="toggle" :style="{ transform: detailsCollapsed ? 'rotate(-90deg)' : 'none' }">▼</span>
+                Transaction Details
+            </h2>
+            <span class="header-count">{{ sections.length }} categories · {{ txnTotalCount }} transactions</span>
+        </div>
+
+        <div class="details-body">
+            <!-- Button row: view toggles left, single collapse toggle right -->
+            <div class="view-toggle">
+                <button :class="{active: view==='merchant'}" @click="view='merchant'">Merchant</button>
+                <button :class="{active: view==='subcategory'}" @click="view='subcategory'">Subcategory</button>
+                <button :class="{active: view==='section'}" @click="view='section'">View</button>
+
+                <div class="collapse-controls">
+                    <button class="icon-btn" :title="allCollapsed ? 'Expand all categories' : 'Collapse all'"
+                            @click="toggleAllSections()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <template v-if="allCollapsed">
+                                <polyline points="7 13 12 18 17 13"></polyline><polyline points="7 6 12 11 17 6"></polyline>
+                            </template>
+                            <template v-else>
+                                <polyline points="17 11 12 6 7 11"></polyline><polyline points="17 18 12 13 7 18"></polyline>
+                            </template>
+                        </svg>
+                        <span>{{ allCollapsed ? 'Expand all' : 'Collapse all' }}</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Category collapsers -->
+            <div v-for="sec in sections" :key="sec.key"
+                 class="category-section"
+                 :class="{ 'is-collapsed': isSecCollapsed(sec.key) }">
+                <div class="section-header" @click="toggleSection(sec.key)">
+                    <h2>
+                        <span class="toggle" :style="{ transform: isSecCollapsed(sec.key) ? 'rotate(-90deg)' : 'none' }">▼</span>
+                        <span class="category-dot" :style="{ backgroundColor: sec.color, '--dot-color': sec.color }"></span>
+                        {{ sec.title }}
+                    </h2>
+                    <span class="section-total">
+                        <span class="section-monthly">{{ money(sec.total/6) }}/mo</span> ·
+                        <span class="section-ytd">{{ money(sec.total) }}</span>
+                        <span class="section-pct">({{ pct(sec.total, grandTotal) }})</span>
+                    </span>
+                </div>
+
+                <div class="section-content">
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Merchant</th>
+                                    <th>Subcategory</th>
+                                    <th class="col-count">Count</th>
+                                    <th>Tags</th>
+                                    <th class="col-total">Total</th>
+                                    <th class="col-pct">%</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template v-for="(m, idx) in sec.merchants" :key="m.id">
+                                    <tr class="merchant-row" @click="toggleTxn(m.id)">
+                                        <td class="merchant">
+                                            <span class="chevron">{{ isTxnOpen(m.id) ? '▼' : '▶' }}</span>
+                                            {{ m.name }}
+                                        </td>
+                                        <td class="category">{{ m.sub }}</td>
+                                        <td class="col-count">{{ m.txns.length }}</td>
+                                        <td>
+                                            <span v-for="t in m.tags" :key="t" class="tag-badge">{{ t }}</span>
+                                        </td>
+                                        <td class="col-total money">{{ money(m.total) }}</td>
+                                        <td class="col-pct pct">{{ pct(m.total, sec.total) }}</td>
+                                    </tr>
+                                    <tr class="txn-row" :class="{ hidden: !isTxnOpen(m.id) }">
+                                        <td :colspan="6">
+                                            <div class="txn-detail" v-for="tx in m.txns" :key="tx.d+tx.desc">
+                                                <span class="txn-date">{{ tx.d }}</span>
+                                                <span class="txn-desc">{{ tx.desc }}</span>
+                                                <span class="txn-amt money">{{ money(tx.amt) }}</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                            <tfoot>
+                                <tr class="total-row">
+                                    <td :colspan="4">Total</td>
+                                    <td class="col-total money">{{ money(sec.total) }}</td>
+                                    <td class="col-pct pct">100%</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <p class="hint">Click a merchant row to expand its transactions. Header row stays pinned at top, Total stays pinned at bottom — only the rows between scroll (skinny scrollbar). Single collapse toggle is top-right.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+const { createApp, ref, reactive, computed, watch } = Vue;
+
+const PALETTE = ['#4facfe','#4dffd2','#ffa94d','#f093fb','#fa709a','#a855f7'];
+
+function mkTxns(n, base, label) {
+    const out = [];
+    for (let i = 0; i < n; i++) {
+        out.push({ d: `2026-0${(i%6)+1}-${10+i}`, desc: `${label} charge #${i+1}`, amt: -(base + (i*3.17 % 40)) });
+    }
+    return out;
+}
+
+const RAW = [
+    { key:'cat:Food', title:'Food', merchants:[
+        { name:'Whole Foods', sub:'Grocery', tags:['grocery'], txns: mkTxns(7,52,'Whole Foods') },
+        { name:'Chipotle', sub:'Dining', tags:['dining'], txns: mkTxns(5,14,'Chipotle') },
+        { name:'Starbucks', sub:'Coffee', tags:['coffee','recurring'], txns: mkTxns(9,6,'Starbucks') },
+        { name:'Trader Joe\'s', sub:'Grocery', tags:['grocery'], txns: mkTxns(4,38,'TJ') },
+    ]},
+    { key:'cat:Transport', title:'Transport', merchants:[
+        { name:'Uber', sub:'Rideshare', tags:['business','reimbursable'], txns: mkTxns(6,22,'Uber') },
+        { name:'Shell', sub:'Gas', tags:[], txns: mkTxns(5,48,'Shell') },
+        { name:'Metro Transit', sub:'Transit', tags:['recurring'], txns: mkTxns(3,2.75,'Metro') },
+    ]},
+    { key:'cat:Subscriptions', title:'Subscriptions', merchants:[
+        { name:'Netflix', sub:'Streaming', tags:['entertainment','recurring'], txns: mkTxns(6,15.99,'Netflix') },
+        { name:'GitHub', sub:'Software', tags:['business','recurring'], txns: mkTxns(6,4,'GitHub') },
+        { name:'Spotify', sub:'Streaming', tags:['recurring'], txns: mkTxns(6,10.99,'Spotify') },
+    ]},
+    { key:'cat:Shopping', title:'Shopping', merchants:[
+        { name:'Amazon', sub:'General', tags:[], txns: mkTxns(12,34,'Amazon') },
+        { name:'Target', sub:'General', tags:[], txns: mkTxns(4,58,'Target') },
+    ]},
+];
+
+createApp({
+    setup() {
+        const theme = ref('dark');
+        watch(theme, v => document.documentElement.setAttribute('data-theme', v), { immediate: true });
+
+        const view = ref('merchant');
+        const detailsCollapsed = ref(false);
+
+        const sections = RAW.map(s => ({
+            ...s,
+            merchants: s.merchants.map((m, i) => ({ ...m, id: s.key + ':' + i, total: m.txns.reduce((a,t)=>a+t.amt,0) })),
+        }));
+        sections.forEach((s, i) => { s.color = PALETTE[i % PALETTE.length]; s.total = s.merchants.reduce((a,m)=>a+m.total,0); });
+        const grandTotal = sections.reduce((a,s)=>a+s.total,0);
+        const txnTotalCount = sections.reduce((a,s)=>a+s.merchants.reduce((b,m)=>b+m.txns.length,0),0);
+
+        // inverted collapse set (mirrors the real app's collapsedSections)
+        const collapsedSections = reactive(new Set());
+        const openTxns = reactive(new Set());
+
+        const isSecCollapsed = (k) => collapsedSections.has(k);
+        const isTxnOpen = (id) => openTxns.has(id);
+
+        function toggleSection(k) {
+            if (collapsedSections.has(k)) collapsedSections.delete(k);
+            else {
+                collapsedSections.add(k);
+                // collapsing a category also folds its open transaction lists
+                sections.find(s=>s.key===k)?.merchants.forEach(m => openTxns.delete(m.id));
+            }
+        }
+        function toggleTxn(id) { openTxns.has(id) ? openTxns.delete(id) : openTxns.add(id); }
+
+        const allCollapsed = computed(() => sections.every(s => collapsedSections.has(s.key)));
+
+        // Collapse all: fold categories AND open transaction lists
+        function collapseAll() { sections.forEach(s => collapsedSections.add(s.key)); openTxns.clear(); }
+        // Expand all: re-open top-level categories only (leave txn lists folded)
+        function expandAll() { collapsedSections.clear(); }
+        function toggleAllSections() { allCollapsed.value ? expandAll() : collapseAll(); }
+
+        // seed a couple open txns so nested content is visible on load
+        openTxns.add('cat:Food:0');
+        openTxns.add('cat:Subscriptions:0');
+
+        const money = (n) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const pct = (part, whole) => whole ? (100 * part / whole).toFixed(1) + '%' : '0%';
+
+        return { theme, view, detailsCollapsed, sections, grandTotal, txnTotalCount,
+                 isSecCollapsed, isTxnOpen, toggleSection, toggleTxn,
+                 allCollapsed, toggleAllSections, money, pct };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

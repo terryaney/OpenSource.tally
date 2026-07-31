@@ -1,0 +1,1775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Date Filter Prototypes — Tally</title>
+<style>
+/* ============================================================
+   Base theme — lifted from spending_report.css so these mock-ups
+   sit in the exact same visual system as the real report.
+   ============================================================ */
+:root {
+    --bg-gradient-start: #1a1a2e;
+    --bg-gradient-end: #16213e;
+    --bg-card: rgba(255,255,255,0.05);
+    --bg-card-hover: rgba(255,255,255,0.08);
+    --bg-input: rgba(255,255,255,0.05);
+    --bg-input-focus: rgba(255,255,255,0.08);
+    --bg-table: rgba(255,255,255,0.03);
+    --bg-scrollbar-track: rgba(255,255,255,0.05);
+    --bg-scrollbar-thumb: rgba(255,255,255,0.2);
+    --shadow-card: rgba(0,0,0,0.3);
+    --shadow-scrolled: rgba(0,0,0,0.4);
+
+    --text-primary: #e8e8e8;
+    --text-secondary: #888;
+    --text-muted: #666;
+    --text-dim: #555;
+    --text-lighter: #aaa;
+
+    --border-light: rgba(255,255,255,0.1);
+    --border-medium: rgba(255,255,255,0.2);
+    --border-strong: rgba(255,255,255,0.3);
+
+    --accent-blue: #4facfe;
+    --accent-blue-light: #00f2fe;
+    --accent-cyan: #4dffd2;
+    --accent-yellow: #f5af19;
+    --accent-pink: #f093fb;
+    --accent-red: #ff6b6b;
+    --accent-green: #4ade80;
+    --accent-purple: #9b59b6;
+}
+[data-theme="light"] {
+    --bg-gradient-start: #f0f4f8;
+    --bg-gradient-end: #ffffff;
+    --bg-card: rgba(0,0,0,0.03);
+    --bg-card-hover: rgba(0,0,0,0.06);
+    --bg-input: rgba(0,0,0,0.03);
+    --bg-input-focus: rgba(0,0,0,0.05);
+    --bg-table: rgba(0,0,0,0.02);
+    --bg-scrollbar-track: rgba(0,0,0,0.05);
+    --bg-scrollbar-thumb: rgba(0,0,0,0.15);
+    --shadow-card: rgba(0,0,0,0.1);
+    --shadow-scrolled: rgba(0,0,0,0.15);
+
+    --text-primary: #1a1a2e;
+    --text-secondary: #555;
+    --text-muted: #777;
+    --text-dim: #888;
+    --text-lighter: #555;
+
+    --border-light: rgba(0,0,0,0.08);
+    --border-medium: rgba(0,0,0,0.12);
+    --border-strong: rgba(0,0,0,0.2);
+
+    --accent-blue: #2563eb;
+    --accent-cyan: #0d9488;
+    --accent-yellow: #ca8a04;
+    --accent-pink: #c026d3;
+    --accent-red: #dc2626;
+    --accent-green: #16a34a;
+    --accent-purple: #7e22ce;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 2rem;
+}
+.container { max-width: 880px; margin: 0 auto; }
+header { text-align: center; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-light); position: relative; }
+h1 {
+    font-size: 2.2rem;
+    font-weight: 300;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-blue-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.subtitle { color: var(--text-secondary); font-size: 0.95rem; max-width: 560px; margin: 0 auto; line-height: 1.5; }
+.theme-toggle {
+    position: absolute; top: 0; right: 0;
+    background: var(--bg-card); border: 1px solid var(--border-medium);
+    border-radius: 50%; width: 36px; height: 36px; cursor: pointer;
+    font-size: 1.1rem; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
+}
+.theme-toggle:hover { background: var(--bg-card-hover); transform: scale(1.1); }
+
+/* jump nav */
+.jump-nav {
+    position: sticky; top: 0; z-index: 300;
+    display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center;
+    background: var(--bg-gradient-start);
+    padding: 0.85rem 1rem; margin: 0 -2rem 2rem -2rem;
+    border-bottom: 1px solid var(--border-light);
+}
+.jump-nav a {
+    text-decoration: none; color: var(--text-secondary);
+    font-size: 0.8rem; padding: 0.35rem 0.8rem; border-radius: 999px;
+    border: 1px solid var(--border-medium); transition: all 0.15s;
+}
+.jump-nav a:hover { color: var(--accent-blue); border-color: var(--accent-blue); }
+
+/* prototype section */
+.proto-section { margin-bottom: 3.5rem; scroll-margin-top: 4.5rem; }
+.proto-eyebrow {
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px;
+    color: var(--accent-blue); font-weight: 600; margin-bottom: 0.35rem;
+}
+.proto-title { font-size: 1.4rem; font-weight: 500; margin-bottom: 0.4rem; }
+.proto-desc { color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; max-width: 620px; }
+.proto-desc b { color: var(--text-lighter); font-weight: 600; }
+
+.proto-card {
+    position: relative; z-index: 1;
+    background: var(--bg-card); border: 1px solid var(--border-light);
+    border-radius: 16px; padding: 1.5rem; backdrop-filter: blur(10px);
+    margin-top: 1.1rem;
+}
+/* backdrop-filter above creates a stacking context per card, which traps an
+   open popover's z-index inside it — a later sibling card then paints over
+   the popover. Raise the whole card above its siblings while any popover
+   inside it is open. */
+.proto-card:has(.proto-popover.open) { z-index: 50; }
+.proto-mock-toolbar {
+    display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;
+    position: relative;
+}
+.proto-fake-search {
+    flex: 1; min-width: 160px; padding: 0.7rem 1rem; border-radius: 8px;
+    border: 1px solid var(--border-medium); background: var(--bg-input);
+    color: var(--text-muted); font-size: 0.9rem;
+}
+.proto-chips-row {
+    display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+    margin-top: 1.1rem; padding-top: 1rem; border-top: 1px dashed var(--border-light);
+    min-height: 1.6rem;
+}
+.proto-chips-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin-right: 0.3rem; }
+.proto-chip-empty { color: var(--text-dim); font-size: 0.82rem; font-style: italic; }
+.proto-chips-row.empty-hidden { display: none; }
+
+/* borrowed straight from the real filter chips */
+.filter-chip {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.35rem 0.6rem; border-radius: 20px; font-size: 0.85rem;
+    border: 1px solid var(--accent-purple);
+    background: rgba(155, 89, 182, 0.18); color: var(--accent-purple);
+}
+.filter-chip .chip-remove { cursor: pointer; opacity: 0.7; font-size: 1rem; line-height: 1; }
+.filter-chip .chip-remove:hover { opacity: 1; }
+.clear-all-btn {
+    background: transparent; border: 1px solid var(--border-strong); color: var(--text-secondary);
+    padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.75rem; cursor: pointer; transition: all 0.2s;
+}
+.clear-all-btn:hover { background: rgba(255,107,107,0.2); border-color: var(--accent-red); color: var(--accent-red); }
+
+/* generic trigger button */
+.proto-btn {
+    padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid var(--border-medium);
+    background: var(--bg-input); color: var(--text-primary); font-size: 0.85rem; font-weight: 500;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; transition: all 0.2s;
+    white-space: nowrap;
+}
+.proto-btn:hover { border-color: var(--accent-blue); background: var(--bg-input-focus); }
+.proto-btn .chev { font-size: 0.65rem; color: var(--text-muted); transition: transform 0.15s; }
+.proto-btn.open .chev { transform: rotate(180deg); }
+
+/* ---------- Option 1: styled native select ---------- */
+.date-range-select {
+    padding: 0.6rem 2rem 0.6rem 1rem; border-radius: 8px; border: 1px solid var(--border-medium);
+    background: var(--bg-input); color: var(--text-primary); font-size: 0.85rem; font-weight: 500;
+    outline: none; cursor: pointer; transition: all 0.2s;
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 0.7rem center; min-width: 150px;
+}
+.date-range-select:hover, .date-range-select:focus { border-color: var(--accent-blue); background-color: var(--bg-input-focus); }
+.proto-pill-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.proto-pill {
+    padding: 0.55rem 0.9rem; border-radius: 999px; border: 1px solid var(--border-medium);
+    background: transparent; color: var(--text-secondary); font-size: 0.8rem; cursor: pointer; transition: all 0.15s;
+}
+.proto-pill:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+.proto-pill.active { background: var(--accent-blue); border-color: var(--accent-blue); color: #fff; font-weight: 600; }
+
+/* ---------- Popovers (shared by options 2, 4, 5) ---------- */
+.proto-popover {
+    position: absolute; top: calc(100% + 10px); left: 0; min-width: 320px;
+    background: var(--bg-gradient-start); border: 1px solid var(--border-medium);
+    border-radius: 12px; box-shadow: 0 16px 48px var(--shadow-scrolled);
+    z-index: 200; padding: 1rem; display: none;
+}
+.proto-popover.open { display: block; animation: proto-pop-in 0.15s ease-out; }
+@keyframes proto-pop-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+.proto-popover-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px solid var(--border-light);
+}
+.proto-link-btn { background: none; border: none; color: var(--text-secondary); font-size: 0.8rem; cursor: pointer; padding: 0; }
+.proto-link-btn:hover { color: var(--accent-red); }
+.proto-apply-btn {
+    background: var(--accent-blue); border: none; color: #fff; padding: 0.5rem 1.1rem;
+    border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: filter 0.15s;
+}
+.proto-apply-btn:hover { filter: brightness(1.12); }
+
+/* ---------- Option 2: quick ranges + month grid ---------- */
+.proto-quick-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.4rem; margin-bottom: 0.9rem; padding-bottom: 0.9rem; border-bottom: 1px solid var(--border-light); }
+.proto-quick-grid .proto-pill { width: 100%; text-align: center; }
+.proto-year-tabs { display: flex; gap: 0.3rem; margin-bottom: 0.7rem; }
+.proto-year-tab {
+    padding: 0.3rem 0.8rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer;
+    color: var(--text-secondary); border: 1px solid transparent;
+}
+.proto-year-tab.active { background: var(--bg-card-hover); color: var(--accent-blue); border-color: var(--border-medium); font-weight: 600; }
+.proto-month-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; }
+.proto-month-cell {
+    padding: 0.55rem 0; text-align: center; border-radius: 8px; border: 1px solid var(--border-light);
+    background: var(--bg-table); color: var(--text-primary); font-size: 0.82rem; cursor: pointer; transition: all 0.15s;
+}
+.proto-month-cell:hover { border-color: var(--accent-blue); }
+.proto-month-cell.selected { background: rgba(79,172,254,0.22); border-color: var(--accent-blue); color: var(--accent-blue); font-weight: 700; }
+.proto-month-cell.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+
+/* ---------- Option 3: timeline scrubber ---------- */
+.proto-timeline-wrap { padding: 0.5rem 0.5rem 0.25rem; }
+.proto-timeline-summary { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.6rem; flex-wrap: wrap; gap: 0.5rem; }
+.proto-timeline-range { font-size: 1.05rem; font-weight: 600; color: var(--accent-blue); }
+.proto-timeline-meta { font-size: 0.8rem; color: var(--text-muted); font-family: 'SF Mono', Monaco, monospace; }
+.proto-timeline-track { position: relative; height: 6px; background: var(--bg-table); border-radius: 3px; margin: 0 11px; user-select: none; }
+.proto-timeline-fill { position: absolute; top: 0; bottom: 0; background: linear-gradient(90deg, var(--accent-blue), var(--accent-blue-light)); border-radius: 3px; }
+.proto-timeline-tick { position: absolute; top: -2px; width: 2px; height: 10px; background: var(--border-medium); transform: translateX(-1px); cursor: pointer; }
+.proto-timeline-tick.major { background: var(--text-muted); height: 13px; top: -3.5px; }
+.proto-timeline-label { position: absolute; top: 18px; font-size: 0.65rem; color: var(--text-muted); transform: translateX(-50%); white-space: nowrap; }
+.proto-timeline-handle {
+    position: absolute; top: 50%; width: 20px; height: 20px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--accent-blue); transform: translate(-50%, -50%);
+    cursor: grab; box-shadow: 0 2px 10px rgba(0,0,0,0.45); z-index: 5; touch-action: none;
+}
+.proto-timeline-handle:active { cursor: grabbing; transform: translate(-50%, -50%) scale(1.15); }
+.proto-timeline-hint { text-align: center; font-size: 0.75rem; color: var(--text-dim); margin-top: 2rem; }
+
+/* ---------- Option 4: searchable checklist ---------- */
+.proto-check-search {
+    width: 100%; padding: 0.55rem 0.8rem; border-radius: 8px; border: 1px solid var(--border-medium);
+    background: var(--bg-input); color: var(--text-primary); font-size: 0.85rem; outline: none;
+    margin-bottom: 0.6rem;
+}
+.proto-check-search:focus { border-color: var(--accent-blue); background: var(--bg-input-focus); }
+.proto-check-list { max-height: 260px; overflow-y: auto; padding-right: 0.25rem; }
+.proto-check-list::-webkit-scrollbar { width: 7px; }
+.proto-check-list::-webkit-scrollbar-track { background: var(--bg-scrollbar-track); border-radius: 4px; }
+.proto-check-list::-webkit-scrollbar-thumb { background: var(--bg-scrollbar-thumb); border-radius: 4px; }
+.proto-year-group-header {
+    display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0.3rem;
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted);
+    cursor: pointer; margin-top: 0.4rem;
+}
+.proto-year-group-header .toggle { transition: transform 0.15s; }
+.proto-year-group-header.collapsed .toggle { transform: rotate(-90deg); }
+.proto-year-group-body { display: flex; flex-direction: column; gap: 0.1rem; }
+.proto-year-group-body.collapsed { display: none; }
+.proto-check-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.5rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+.proto-check-row:hover { background: var(--bg-card-hover); }
+.proto-checkbox {
+    width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--border-strong);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.1s;
+}
+.proto-checkbox.checked { background: var(--accent-blue); border-color: var(--accent-blue); }
+.proto-checkbox.checked::after { content: '\2713'; color: #fff; font-size: 0.65rem; font-weight: 700; }
+.proto-check-amount { margin-left: auto; font-family: 'SF Mono', Monaco, monospace; font-size: 0.75rem; color: var(--text-muted); }
+.proto-check-empty { text-align: center; color: var(--text-dim); font-size: 0.82rem; padding: 1rem 0; }
+.proto-check-footer-count { font-size: 0.78rem; color: var(--text-secondary); }
+
+/* ---------- Option 5: preset list + custom range ---------- */
+.proto-preset-list { display: flex; flex-direction: column; gap: 0.1rem; }
+.proto-preset-item {
+    padding: 0.55rem 0.7rem; border-radius: 6px; font-size: 0.85rem; cursor: pointer;
+    color: var(--text-primary); display: flex; justify-content: space-between; align-items: center;
+}
+.proto-preset-item:hover { background: var(--bg-card-hover); }
+.proto-preset-item.active { background: rgba(79,172,254,0.16); color: var(--accent-blue); font-weight: 600; }
+.proto-preset-item .arrow { color: var(--text-muted); font-size: 0.75rem; }
+.proto-preset-divider { height: 1px; background: var(--border-light); margin: 0.45rem 0; }
+.proto-back-btn {
+    font-size: 0.78rem; color: var(--accent-blue); cursor: pointer; background: none; border: none;
+    display: flex; align-items: center; gap: 0.3rem; margin-bottom: 0.75rem; padding: 0;
+}
+.proto-custom-range { display: flex; flex-direction: column; gap: 0.7rem; }
+.proto-range-row { display: flex; align-items: center; gap: 0.6rem; }
+.proto-range-row label { font-size: 0.75rem; color: var(--text-muted); width: 38px; flex-shrink: 0; }
+.proto-range-row select {
+    flex: 1; padding: 0.5rem 0.7rem; border-radius: 8px; border: 1px solid var(--border-medium);
+    background: var(--bg-input); color: var(--text-primary); font-size: 0.85rem; outline: none;
+}
+.proto-range-row select:focus { border-color: var(--accent-blue); }
+
+/* ---------- Round 2 divider ---------- */
+.proto-round-divider {
+    display: flex; align-items: center; gap: 1rem; margin: 3rem 0 2rem;
+    color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1.5px;
+}
+.proto-round-divider::before, .proto-round-divider::after { content: ''; flex: 1; height: 1px; background: var(--border-light); }
+
+/* ---------- Options 6 & 7: structured popover (shared) ---------- */
+.proto-popover-wide { min-width: 360px; }
+.proto-popover-divider { height: 1px; background: var(--border-light); margin: 0.9rem 0; }
+.proto-quick-grid-3col { grid-template-columns: repeat(3, 1fr); border-bottom: none; padding-bottom: 0; margin-bottom: 0.4rem; }
+.proto-month-grid-3col { grid-template-columns: repeat(3, 1fr); }
+.proto-year-tabs { position: relative; }
+.proto-year-tab { position: relative; }
+.proto-year-tab .dot { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent-blue); }
+.proto-year-tabs .proto-link-btn { margin-left: auto; }
+.proto-link-danger { color: var(--accent-red); opacity: 0.85; }
+.proto-link-danger:hover { color: var(--accent-red); opacity: 1; }
+
+.proto-daterange-row { display: flex; gap: 0.8rem; }
+.proto-date-input-wrap { position: relative; flex: 1; }
+.proto-date-input-wrap label {
+    display: block; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.3rem;
+    text-transform: uppercase; letter-spacing: 0.5px;
+}
+.proto-date-input {
+    display: flex; align-items: center; border: 1px solid var(--border-medium); border-radius: 8px;
+    background: var(--bg-input); overflow: hidden; transition: border-color 0.15s;
+}
+.proto-date-input:focus-within { border-color: var(--accent-blue); }
+.proto-date-input input[type="text"] {
+    flex: 1; min-width: 0; border: none; background: transparent; padding: 0.55rem 0.7rem;
+    color: var(--text-primary); font-size: 0.85rem; outline: none;
+}
+.proto-date-input input[type="text"].invalid { color: var(--accent-red); }
+.proto-date-input input[type="date"] {
+    flex: 1; min-width: 0; border: none; background: transparent; padding: 0.5rem 0.7rem;
+    color: var(--text-primary); font-size: 0.85rem; outline: none; color-scheme: dark;
+}
+[data-theme="light"] .proto-date-input input[type="date"] { color-scheme: light; }
+.proto-cal-btn {
+    border: none; border-left: 1px solid var(--border-light); background: transparent;
+    padding: 0.5rem 0.6rem; cursor: pointer; color: var(--text-muted); font-size: 0.9rem; flex-shrink: 0;
+}
+.proto-cal-btn:hover { color: var(--accent-blue); }
+
+/* nested drill-down calendar popover */
+.proto-cal-popover {
+    display: none; position: absolute; top: calc(100% + 8px); left: 0; z-index: 60; width: 232px;
+    background: var(--bg-gradient-start); border: 1px solid var(--border-medium);
+    border-radius: 10px; box-shadow: 0 12px 36px var(--shadow-scrolled); padding: 0.75rem;
+}
+.proto-cal-popover.open { display: block; animation: proto-pop-in 0.15s ease-out; }
+#p6-end-cal { left: auto; right: 0; }
+.proto-cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.55rem; }
+.proto-cal-nav {
+    background: none; border: none; color: var(--text-muted); font-size: 1rem; cursor: pointer;
+    padding: 0.15rem 0.5rem; border-radius: 6px; line-height: 1;
+}
+.proto-cal-nav:hover { color: var(--accent-blue); background: var(--bg-card-hover); }
+.proto-cal-title { display: flex; gap: 0.35rem; font-size: 0.83rem; font-weight: 600; }
+.proto-cal-drill {
+    background: none; border: none; color: var(--text-primary); font-size: 0.83rem; font-weight: 600;
+    cursor: pointer; padding: 0.1rem 0.3rem; border-radius: 4px;
+}
+.proto-cal-drill:hover { color: var(--accent-blue); background: var(--bg-card-hover); }
+.proto-cal-dow { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 0.2rem; }
+.proto-cal-dow span { text-align: center; font-size: 0.62rem; color: var(--text-dim); }
+.proto-cal-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.proto-cal-day {
+    aspect-ratio: 1; border: none; background: transparent; color: var(--text-primary);
+    font-size: 0.76rem; cursor: pointer; border-radius: 6px;
+}
+.proto-cal-day:hover:not(.empty) { background: var(--bg-card-hover); }
+.proto-cal-day.empty { cursor: default; pointer-events: none; }
+.proto-cal-day.today { border: 1px solid var(--accent-blue); }
+.proto-cal-day.selected { background: var(--accent-blue); color: #fff; font-weight: 700; }
+.proto-cal-months, .proto-cal-years { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
+.proto-cal-cell {
+    padding: 0.5rem 0; text-align: center; border-radius: 8px; border: 1px solid var(--border-light);
+    background: var(--bg-table); color: var(--text-primary); font-size: 0.78rem; cursor: pointer; transition: all 0.15s;
+}
+.proto-cal-cell:hover { border-color: var(--accent-blue); }
+.proto-cal-cell.selected { background: rgba(79,172,254,0.22); border-color: var(--accent-blue); color: var(--accent-blue); font-weight: 700; }
+
+footer { text-align: center; padding-top: 1rem; padding-bottom: 2rem; color: var(--text-dim); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<div class="container">
+
+    <header>
+        <h1>Date Filter — Prototypes</h1>
+        <p class="subtitle">Five takes on the "+ Date filter" control from the spending report, in the same
+            dark-glass theme. Everything below is wired up with vanilla JS so you can actually click around —
+            nothing is connected to real data.</p>
+        <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
+    </header>
+
+    <nav class="jump-nav">
+        <a href="#opt1">1. Pills + Select</a>
+        <a href="#opt2">2. Quick Range Popover</a>
+        <a href="#opt3">3. Timeline Scrubber</a>
+        <a href="#opt4">4. Searchable Checklist</a>
+        <a href="#opt5">5. Preset + Custom Range</a>
+        <a href="#opt6">6. Structured + Drill Calendar</a>
+        <a href="#opt7">7. Structured + Native Dates</a>
+    </nav>
+
+    <!-- ============================================================ -->
+    <!-- OPTION 1 -->
+    <!-- ============================================================ -->
+    <section class="proto-section" id="opt1">
+        <div class="proto-eyebrow">Option 1</div>
+        <div class="proto-title">Quick Pills + Grouped Native Select</div>
+        <p class="proto-desc">The smallest possible change from what exists today. Adds a row of one-click
+            <b>range pills</b> (This Month / Last 3 / Last 6 / YTD / All Time) above the existing dropdown, and
+            groups the select's months by <b>year</b> instead of one long flat list. Cheapest to build, easiest
+            to scan, no new interaction patterns to learn.</p>
+        <div class="proto-card">
+            <div class="proto-mock-toolbar">
+                <input class="proto-fake-search" placeholder="Search merchants, categories, tags..." disabled>
+                <div class="proto-pill-row" id="p1-pills"></div>
+                <select class="date-range-select" id="p1-select">
+                    <option value="">+ Pick a month</option>
+                </select>
+            </div>
+            <div class="proto-chips-row" id="p1-chips">
+                <span class="proto-chips-label">Active:</span>
+                <span class="proto-chip-empty">No date filter applied</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- OPTION 2 -->
+    <!-- ============================================================ -->
+    <section class="proto-section" id="opt2">
+        <div class="proto-eyebrow">Option 2</div>
+        <div class="proto-title">Quick-Range Popover with Month Grid</div>
+        <p class="proto-desc">One button opens a small panel: presets on top for the common cases, then a
+            <b>year-tabbed grid</b> of months below for anything custom — click multiple months to multi-select,
+            hit <b>Apply</b> when done. Good balance of speed (presets) and precision (grid) without leaving the
+            toolbar.</p>
+        <div class="proto-card">
+            <div class="proto-mock-toolbar">
+                <input class="proto-fake-search" placeholder="Search merchants, categories, tags..." disabled>
+                <button class="proto-btn" id="p2-trigger">📅 <span id="p2-label">Date filter</span> <span class="chev">▾</span></button>
+                <div class="proto-popover" id="p2-popover">
+                    <div class="proto-quick-grid" id="p2-quick"></div>
+                    <div class="proto-year-tabs" id="p2-years"></div>
+                    <div class="proto-month-grid" id="p2-grid"></div>
+                    <div class="proto-popover-footer">
+                        <button class="proto-link-btn" id="p2-clear">Clear</button>
+                        <button class="proto-apply-btn" id="p2-apply">Apply</button>
+                    </div>
+                </div>
+            </div>
+            <div class="proto-chips-row" id="p2-chips">
+                <span class="proto-chips-label">Active:</span>
+                <span class="proto-chip-empty">No date filter applied</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- OPTION 3 -->
+    <!-- ============================================================ -->
+    <section class="proto-section" id="opt3">
+        <div class="proto-eyebrow">Option 3</div>
+        <div class="proto-title">Interactive Timeline Scrubber</div>
+        <p class="proto-desc">Every month in your data plotted along a single track. Drag either handle — or
+            click a tick to snap the nearest one — to pick a continuous range. Feels native to a finance app
+            (think stock-chart range selectors) and makes the <b>size</b> of your data window immediately
+            visible, at the cost of being awkward for non-contiguous selections.</p>
+        <div class="proto-card">
+            <div class="proto-mock-toolbar" style="margin-bottom: 0.5rem;">
+                <input class="proto-fake-search" placeholder="Search merchants, categories, tags..." disabled>
+            </div>
+            <div class="proto-timeline-wrap">
+                <div class="proto-timeline-summary">
+                    <span class="proto-timeline-range" id="p3-range"></span>
+                    <span class="proto-timeline-meta" id="p3-meta"></span>
+                </div>
+                <div class="proto-timeline-track" id="p3-track">
+                    <div class="proto-timeline-fill" id="p3-fill"></div>
+                    <div class="proto-timeline-handle" id="p3-handle-start"></div>
+                    <div class="proto-timeline-handle" id="p3-handle-end"></div>
+                </div>
+                <div class="proto-timeline-hint">Drag a handle, or click any tick to move the closer one</div>
+            </div>
+            <div class="proto-chips-row" id="p3-chips" style="margin-top: 1.75rem;">
+                <span class="proto-chips-label">Active:</span>
+                <span class="proto-chip-empty">No date filter applied</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- OPTION 4 -->
+    <!-- ============================================================ -->
+    <section class="proto-section" id="opt4">
+        <div class="proto-eyebrow">Option 4</div>
+        <div class="proto-title">Searchable Multi-Select Checklist</div>
+        <p class="proto-desc">A checkbox list grouped by year (click a year header to collapse it), each row
+            showing that month's total as a preview, with a search box up top for jumping straight to a month
+            by name. Best option if people tend to build up <b>non-contiguous</b> selections (e.g. "every
+            December") rather than a single range.</p>
+        <div class="proto-card">
+            <div class="proto-mock-toolbar">
+                <input class="proto-fake-search" placeholder="Search merchants, categories, tags..." disabled>
+                <button class="proto-btn" id="p4-trigger">✓ <span id="p4-label">Date filter</span> <span class="chev">▾</span></button>
+                <div class="proto-popover" id="p4-popover" style="min-width: 300px;">
+                    <input class="proto-check-search" id="p4-search" placeholder="Jump to a month...">
+                    <div class="proto-check-list" id="p4-list"></div>
+                    <div class="proto-popover-footer">
+                        <span class="proto-check-footer-count" id="p4-count">0 selected</span>
+                        <div style="display:flex; gap:0.6rem; align-items:center;">
+                            <button class="proto-link-btn" id="p4-clear">Clear</button>
+                            <button class="proto-apply-btn" id="p4-apply">Apply</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="proto-chips-row" id="p4-chips">
+                <span class="proto-chips-label">Active:</span>
+                <span class="proto-chip-empty">No date filter applied</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- OPTION 5 -->
+    <!-- ============================================================ -->
+    <section class="proto-section" id="opt5">
+        <div class="proto-eyebrow">Option 5</div>
+        <div class="proto-title">Preset Dropdown with Custom Range Builder</div>
+        <p class="proto-desc">A single button that always shows the current selection as its label (e.g.
+            "Last 6 Months"). Opening it shows a flat list of presets plus a "Custom Range…" item that swaps the
+            panel for two <b>From / To</b> month pickers. Reads the most like a familiar analytics-tool date
+            picker (Stripe, GA, etc.) and keeps the toolbar itself minimal.</p>
+        <div class="proto-card">
+            <div class="proto-mock-toolbar">
+                <input class="proto-fake-search" placeholder="Search merchants, categories, tags..." disabled>
+                <button class="proto-btn" id="p5-trigger"><span id="p5-label">All Time</span> <span class="chev">▾</span></button>
+                <div class="proto-popover" id="p5-popover" style="min-width: 260px;">
+                    <div id="p5-preset-view">
+                        <div class="proto-preset-list" id="p5-presets"></div>
+                    </div>
+                    <div id="p5-custom-view" style="display:none;">
+                        <button class="proto-back-btn" id="p5-back">← Back to presets</button>
+                        <div class="proto-custom-range">
+                            <div class="proto-range-row">
+                                <label>From</label>
+                                <select id="p5-from"></select>
+                            </div>
+                            <div class="proto-range-row">
+                                <label>To</label>
+                                <select id="p5-to"></select>
+                            </div>
+                        </div>
+                        <div class="proto-popover-footer">
+                            <span></span>
+                            <button class="proto-apply-btn" id="p5-apply-custom">Apply Range</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="proto-chips-row" id="p5-chips">
+                <span class="proto-chips-label">Active:</span>
+                <span class="proto-chip-empty">No date filter applied</span>
+            </div>
+        </div>
+    </section>
+
+    <div class="proto-round-divider"><span>Round 2 — built from a detailed interaction spec</span></div>
+
+    <!-- ============================================================ -->
+    <!-- OPTION 6 -->
+    <!-- ============================================================ -->
+    <section class="proto-section" id="opt6">
+        <div class="proto-eyebrow">Option 6 · Round 2</div>
+        <div class="proto-title">Structured Categories + Drill-Down Calendar</div>
+        <p class="proto-desc">Everything — This/Last presets, individual months, and a custom range — stages
+            into <b>one pending list</b> and only becomes a chip when you hit <b>Apply</b>; nothing is
+            special-cased or auto-closes early anymore. This/Last Quarter and Year each collapse into a single
+            compact chip; clicking individual months in the grid adds one chip per month (the same entry either
+            way, so clicking "This Month" and then that month's cell is a no-op, not a duplicate); Start/End
+            becomes one range chip. <b>Clear</b> only unselects months (grid picks + This/Last Month);
+            <b>Clear all filters</b> wipes everything and closes. Start/End use a <b>drill-down calendar</b>:
+            click the month or year in the header to zoom out to a month grid or a paginated year grid, then
+            click a cell to drill back in.</p>
+        <div class="proto-card">
+            <div class="proto-mock-toolbar">
+                <input class="proto-fake-search" placeholder="Search merchants, categories, tags..." disabled>
+                <button class="proto-btn" id="p6-trigger">📅 <span id="p6-label">Date filter</span> <span class="chev">▾</span></button>
+                <div class="proto-popover proto-popover-wide" id="p6-popover">
+                    <div class="proto-quick-grid proto-quick-grid-3col" id="p6-this"></div>
+                    <div class="proto-quick-grid proto-quick-grid-3col" id="p6-last"></div>
+                    <div class="proto-popover-divider"></div>
+                    <div class="proto-year-tabs" id="p6-years"></div>
+                    <div class="proto-month-grid proto-month-grid-3col" id="p6-grid"></div>
+                    <div class="proto-popover-divider"></div>
+                    <div class="proto-daterange-row">
+                        <div class="proto-date-input-wrap" id="p6-start-wrap">
+                            <label>Start</label>
+                            <div class="proto-date-input">
+                                <input type="text" id="p6-start-text" placeholder="e.g. 3/15/2026">
+                                <button type="button" class="proto-cal-btn" id="p6-start-cal-btn">📅</button>
+                            </div>
+                            <div class="proto-cal-popover" id="p6-start-cal"></div>
+                        </div>
+                        <div class="proto-date-input-wrap" id="p6-end-wrap">
+                            <label>End</label>
+                            <div class="proto-date-input">
+                                <input type="text" id="p6-end-text" placeholder="e.g. 7/7/2026">
+                                <button type="button" class="proto-cal-btn" id="p6-end-cal-btn">📅</button>
+                            </div>
+                            <div class="proto-cal-popover" id="p6-end-cal"></div>
+                        </div>
+                    </div>
+                    <div class="proto-popover-footer">
+                        <button type="button" class="proto-link-btn proto-link-danger" id="p6-clear-all">Clear all filters</button>
+                        <button type="button" class="proto-apply-btn" id="p6-apply">Apply</button>
+                    </div>
+                </div>
+            </div>
+            <div class="proto-chips-row empty-hidden" id="p6-chips"></div>
+        </div>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- OPTION 7 -->
+    <!-- ============================================================ -->
+    <section class="proto-section" id="opt7">
+        <div class="proto-eyebrow">Option 7 · Round 2</div>
+        <div class="proto-title">Structured Categories + Native Date Inputs</div>
+        <p class="proto-desc">Identical popover to Option 6 — same This/Last rows, same year-tabbed month grid,
+            same pending/Apply/Clear model — but Start/End are plain <code>&lt;input type="date"&gt;</code>
+            fields instead of a custom drill-down calendar. Far less code to build and maintain, and it's a
+            date-entry control everyone already knows, at the cost of a picker UI that's the browser's native
+            chrome rather than something skinned to match the report.</p>
+        <div class="proto-card">
+            <div class="proto-mock-toolbar">
+                <input class="proto-fake-search" placeholder="Search merchants, categories, tags..." disabled>
+                <button class="proto-btn" id="p7-trigger">📅 <span id="p7-label">Date filter</span> <span class="chev">▾</span></button>
+                <div class="proto-popover proto-popover-wide" id="p7-popover">
+                    <div class="proto-quick-grid proto-quick-grid-3col" id="p7-this"></div>
+                    <div class="proto-quick-grid proto-quick-grid-3col" id="p7-last"></div>
+                    <div class="proto-popover-divider"></div>
+                    <div class="proto-year-tabs" id="p7-years"></div>
+                    <div class="proto-month-grid proto-month-grid-3col" id="p7-grid"></div>
+                    <div class="proto-popover-divider"></div>
+                    <div class="proto-daterange-row">
+                        <div class="proto-date-input-wrap">
+                            <label>Start</label>
+                            <div class="proto-date-input"><input type="date" id="p7-start-date"></div>
+                        </div>
+                        <div class="proto-date-input-wrap">
+                            <label>End</label>
+                            <div class="proto-date-input"><input type="date" id="p7-end-date"></div>
+                        </div>
+                    </div>
+                    <div class="proto-popover-footer">
+                        <button type="button" class="proto-link-btn proto-link-danger" id="p7-clear-all">Clear all filters</button>
+                        <button type="button" class="proto-apply-btn" id="p7-apply">Apply</button>
+                    </div>
+                </div>
+            </div>
+            <div class="proto-chips-row empty-hidden" id="p7-chips"></div>
+        </div>
+    </section>
+
+    <footer>Prototype only — pick a favorite and it'll get wired into the real report.</footer>
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    // ============================================================
+    // Shared fake data — 19 months, Jan 2025 through Jul 2026,
+    // with a plausible spend amount per month for previews.
+    // ============================================================
+    var MONTHS = [
+        { key: '2025-01', label: 'Jan 2025', year: 2025, amount: 2650 },
+        { key: '2025-02', label: 'Feb 2025', year: 2025, amount: 2410 },
+        { key: '2025-03', label: 'Mar 2025', year: 2025, amount: 3120 },
+        { key: '2025-04', label: 'Apr 2025', year: 2025, amount: 2890 },
+        { key: '2025-05', label: 'May 2025', year: 2025, amount: 3560 },
+        { key: '2025-06', label: 'Jun 2025', year: 2025, amount: 4210 },
+        { key: '2025-07', label: 'Jul 2025', year: 2025, amount: 3780 },
+        { key: '2025-08', label: 'Aug 2025', year: 2025, amount: 2990 },
+        { key: '2025-09', label: 'Sep 2025', year: 2025, amount: 3340 },
+        { key: '2025-10', label: 'Oct 2025', year: 2025, amount: 4025 },
+        { key: '2025-11', label: 'Nov 2025', year: 2025, amount: 4680 },
+        { key: '2025-12', label: 'Dec 2025', year: 2025, amount: 5210 },
+        { key: '2026-01', label: 'Jan 2026', year: 2026, amount: 2780 },
+        { key: '2026-02', label: 'Feb 2026', year: 2026, amount: 2915 },
+        { key: '2026-03', label: 'Mar 2026', year: 2026, amount: 3405 },
+        { key: '2026-04', label: 'Apr 2026', year: 2026, amount: 3670 },
+        { key: '2026-05', label: 'May 2026', year: 2026, amount: 3990 },
+        { key: '2026-06', label: 'Jun 2026', year: 2026, amount: 3255 },
+        { key: '2026-07', label: 'Jul 2026', year: 2026, amount: 2140 }
+    ];
+    var TODAY_IDX = MONTHS.length - 1; // "Jul 2026" is treated as the current month
+    var YEARS = [2025, 2026];
+
+    function fmt(n) {
+        return '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    }
+    function monthByKey(key) {
+        for (var i = 0; i < MONTHS.length; i++) if (MONTHS[i].key === key) return MONTHS[i];
+        return null;
+    }
+    function slice(startIdx, endIdx) {
+        return MONTHS.slice(startIdx, endIdx + 1);
+    }
+    function rangeLabel(months) {
+        if (months.length === 0) return '';
+        if (months.length === 1) return months[0].label;
+        return months[0].label + ' – ' + months[months.length - 1].label;
+    }
+    function sumAmount(months) {
+        return months.reduce(function (s, m) { return s + m.amount; }, 0);
+    }
+
+    // Generic chip renderer used by every option's demo strip.
+    // Hides the whole row (including its divider) when nothing is active,
+    // rather than showing an empty "No date filter applied" placeholder.
+    function renderChips(container, months, onRemove, onClearAll) {
+        container.innerHTML = '';
+        if (!months || months.length === 0) {
+            container.classList.add('empty-hidden');
+            return;
+        }
+        container.classList.remove('empty-hidden');
+        var lbl = document.createElement('span');
+        lbl.className = 'proto-chips-label';
+        lbl.textContent = 'Active:';
+        container.appendChild(lbl);
+
+        months.forEach(function (m) {
+            var chip = document.createElement('span');
+            chip.className = 'filter-chip';
+            chip.innerHTML = '<span>' + m.label + '</span><span class="chip-remove">&times;</span>';
+            chip.querySelector('.chip-remove').addEventListener('click', function () { onRemove(m.key); });
+            container.appendChild(chip);
+        });
+        if (months.length > 1 && onClearAll) {
+            var clearBtn = document.createElement('button');
+            clearBtn.className = 'clear-all-btn';
+            clearBtn.textContent = 'Clear all';
+            clearBtn.addEventListener('click', onClearAll);
+            container.appendChild(clearBtn);
+        }
+    }
+
+    // Close any open popover when clicking outside it / its trigger
+    var openPopovers = [];
+    function registerPopover(trigger, popover, onClose) {
+        openPopovers.push({ trigger: trigger, popover: popover, onClose: onClose });
+        // Selecting an item inside a popover (a pill, a grid cell, a checklist
+        // row...) re-renders that same list via innerHTML, which detaches the
+        // clicked element from the DOM while the click event is still bubbling.
+        // By the time it reaches the document-level listener below,
+        // popover.contains(e.target) is false for a now-detached node, so the
+        // "click was outside" check misfires and closes the popover on every
+        // selection. Stop the bubble at the popover boundary so only genuine
+        // outside clicks reach that listener.
+        popover.addEventListener('click', function (e) { e.stopPropagation(); });
+    }
+    document.addEventListener('click', function (e) {
+        openPopovers.forEach(function (p) {
+            if (p.popover.classList.contains('open') &&
+                !p.popover.contains(e.target) && !p.trigger.contains(e.target)) {
+                p.popover.classList.remove('open');
+                p.trigger.classList.remove('open');
+                if (p.onClose) p.onClose();
+            }
+        });
+    });
+    function togglePopover(trigger, popover) {
+        var willOpen = !popover.classList.contains('open');
+        openPopovers.forEach(function (p) {
+            p.popover.classList.remove('open');
+            p.trigger.classList.remove('open');
+        });
+        if (willOpen) {
+            popover.classList.add('open');
+            trigger.classList.add('open');
+        }
+    }
+
+    // ============================================================
+    // OPTION 1 — quick pills + grouped native select
+    // ============================================================
+    (function option1() {
+        var selectedKeys = [];
+        var pillsEl = document.getElementById('p1-pills');
+        var selectEl = document.getElementById('p1-select');
+        var chipsEl = document.getElementById('p1-chips');
+
+        var PRESETS = [
+            { label: 'This Month', keys: [MONTHS[TODAY_IDX].key] },
+            { label: 'Last 3 Mo', keys: slice(TODAY_IDX - 2, TODAY_IDX).map(function (m) { return m.key; }) },
+            { label: 'Last 6 Mo', keys: slice(TODAY_IDX - 5, TODAY_IDX).map(function (m) { return m.key; }) },
+            { label: 'YTD', keys: MONTHS.filter(function (m) { return m.year === MONTHS[TODAY_IDX].year; }).map(function (m) { return m.key; }) },
+            { label: 'All Time', keys: MONTHS.map(function (m) { return m.key; }) }
+        ];
+
+        PRESETS.forEach(function (preset) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'proto-pill';
+            btn.textContent = preset.label;
+            btn.addEventListener('click', function () {
+                selectedKeys = preset.keys.slice();
+                render();
+            });
+            pillsEl.appendChild(btn);
+        });
+
+        YEARS.forEach(function (year) {
+            var group = document.createElement('optgroup');
+            group.label = String(year);
+            MONTHS.filter(function (m) { return m.year === year; }).forEach(function (m) {
+                var opt = document.createElement('option');
+                opt.value = m.key;
+                opt.textContent = m.label;
+                group.appendChild(opt);
+            });
+            selectEl.appendChild(group);
+        });
+        selectEl.addEventListener('change', function () {
+            if (selectEl.value) {
+                if (selectedKeys.indexOf(selectEl.value) === -1) selectedKeys.push(selectEl.value);
+                selectEl.value = '';
+                render();
+            }
+        });
+
+        function render() {
+            var months = MONTHS.filter(function (m) { return selectedKeys.indexOf(m.key) !== -1; });
+            // highlight matching preset pill, if any
+            var pills = pillsEl.querySelectorAll('.proto-pill');
+            pills.forEach(function (p, i) {
+                var preset = PRESETS[i];
+                var matches = preset.keys.length === selectedKeys.length &&
+                    preset.keys.every(function (k) { return selectedKeys.indexOf(k) !== -1; });
+                p.classList.toggle('active', matches);
+            });
+            renderChips(chipsEl, months, function (key) {
+                selectedKeys = selectedKeys.filter(function (k) { return k !== key; });
+                render();
+            }, function () { selectedKeys = []; render(); });
+        }
+        render();
+    })();
+
+    // ============================================================
+    // OPTION 2 — quick-range popover + year-tabbed month grid
+    // ============================================================
+    (function option2() {
+        var trigger = document.getElementById('p2-trigger');
+        var popover = document.getElementById('p2-popover');
+        var label = document.getElementById('p2-label');
+        var quickEl = document.getElementById('p2-quick');
+        var yearsEl = document.getElementById('p2-years');
+        var gridEl = document.getElementById('p2-grid');
+        var chipsEl = document.getElementById('p2-chips');
+        var clearBtn = document.getElementById('p2-clear');
+        var applyBtn = document.getElementById('p2-apply');
+
+        var pendingKeys = [];   // being edited inside the popover
+        var appliedKeys = [];   // committed, drives the chips + button label
+        var activeYear = MONTHS[TODAY_IDX].year;
+
+        var PRESETS = [
+            { label: 'This Month', keys: [MONTHS[TODAY_IDX].key] },
+            { label: 'Last 3 Months', keys: slice(TODAY_IDX - 2, TODAY_IDX).map(function (m) { return m.key; }) },
+            { label: 'Last 6 Months', keys: slice(TODAY_IDX - 5, TODAY_IDX).map(function (m) { return m.key; }) },
+            { label: 'Year to Date', keys: MONTHS.filter(function (m) { return m.year === MONTHS[TODAY_IDX].year; }).map(function (m) { return m.key; }) },
+            { label: 'All Time', keys: MONTHS.map(function (m) { return m.key; }) }
+        ];
+
+        PRESETS.forEach(function (preset) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'proto-pill';
+            btn.textContent = preset.label;
+            btn.addEventListener('click', function () {
+                appliedKeys = preset.keys.slice();
+                pendingKeys = appliedKeys.slice();
+                commit();
+                popover.classList.remove('open');
+                trigger.classList.remove('open');
+            });
+            quickEl.appendChild(btn);
+        });
+
+        YEARS.forEach(function (year) {
+            var tab = document.createElement('div');
+            tab.className = 'proto-year-tab';
+            tab.textContent = String(year);
+            tab.addEventListener('click', function () { activeYear = year; renderGrid(); });
+            yearsEl.appendChild(tab);
+        });
+
+        function renderGrid() {
+            yearsEl.querySelectorAll('.proto-year-tab').forEach(function (tab) {
+                tab.classList.toggle('active', tab.textContent === String(activeYear));
+            });
+            gridEl.innerHTML = '';
+            MONTHS.filter(function (m) { return m.year === activeYear; }).forEach(function (m) {
+                var cell = document.createElement('div');
+                cell.className = 'proto-month-cell';
+                cell.textContent = m.label.split(' ')[0];
+                if (pendingKeys.indexOf(m.key) !== -1) cell.classList.add('selected');
+                cell.addEventListener('click', function () {
+                    var idx = pendingKeys.indexOf(m.key);
+                    if (idx === -1) pendingKeys.push(m.key); else pendingKeys.splice(idx, 1);
+                    renderGrid();
+                });
+                gridEl.appendChild(cell);
+            });
+        }
+
+        trigger.addEventListener('click', function () {
+            pendingKeys = appliedKeys.slice();
+            togglePopover(trigger, popover);
+            renderGrid();
+        });
+        clearBtn.addEventListener('click', function () { pendingKeys = []; renderGrid(); });
+        applyBtn.addEventListener('click', function () {
+            appliedKeys = pendingKeys.slice();
+            commit();
+            popover.classList.remove('open');
+            trigger.classList.remove('open');
+        });
+        registerPopover(trigger, popover);
+
+        function commit() {
+            var months = MONTHS.filter(function (m) { return appliedKeys.indexOf(m.key) !== -1; });
+            label.textContent = months.length === 0 ? 'Date filter' :
+                (months.length === 1 ? months[0].label : months.length + ' months selected');
+            renderChips(chipsEl, months, function (key) {
+                appliedKeys = appliedKeys.filter(function (k) { return k !== key; });
+                commit();
+            }, function () { appliedKeys = []; commit(); });
+        }
+        commit();
+    })();
+
+    // ============================================================
+    // OPTION 3 — draggable timeline range scrubber
+    // ============================================================
+    (function option3() {
+        var track = document.getElementById('p3-track');
+        var fill = document.getElementById('p3-fill');
+        var handleStart = document.getElementById('p3-handle-start');
+        var handleEnd = document.getElementById('p3-handle-end');
+        var rangeLbl = document.getElementById('p3-range');
+        var metaLbl = document.getElementById('p3-meta');
+        var chipsEl = document.getElementById('p3-chips');
+
+        var startIdx = TODAY_IDX - 5; // default: last 6 months
+        var endIdx = TODAY_IDX;
+        var lastCount = MONTHS.length - 1;
+
+        // ticks + labels
+        MONTHS.forEach(function (m, i) {
+            var pct = (i / lastCount) * 100;
+            var isMajor = (i % 3 === 0) || i === lastCount;
+            var tick = document.createElement('div');
+            tick.className = 'proto-timeline-tick' + (isMajor ? ' major' : '');
+            tick.style.left = pct + '%';
+            tick.addEventListener('click', function () {
+                // move whichever handle is closer
+                if (Math.abs(i - startIdx) <= Math.abs(i - endIdx)) startIdx = Math.min(i, endIdx);
+                else endIdx = Math.max(i, startIdx);
+                render();
+            });
+            track.appendChild(tick);
+            if (isMajor) {
+                var lab = document.createElement('div');
+                lab.className = 'proto-timeline-label';
+                lab.style.left = pct + '%';
+                lab.textContent = m.label;
+                track.appendChild(lab);
+            }
+        });
+
+        function pctToIdx(clientX) {
+            var rect = track.getBoundingClientRect();
+            var pct = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+            return Math.round(pct * lastCount);
+        }
+        function bindDrag(handle, isStart) {
+            handle.addEventListener('pointerdown', function (e) {
+                handle.setPointerCapture(e.pointerId);
+                function move(ev) {
+                    var idx = pctToIdx(ev.clientX);
+                    if (isStart) startIdx = Math.min(idx, endIdx);
+                    else endIdx = Math.max(idx, startIdx);
+                    render();
+                }
+                function up() {
+                    document.removeEventListener('pointermove', move);
+                    document.removeEventListener('pointerup', up);
+                }
+                document.addEventListener('pointermove', move);
+                document.addEventListener('pointerup', up);
+            });
+        }
+        bindDrag(handleStart, true);
+        bindDrag(handleEnd, false);
+
+        function render() {
+            var startPct = (startIdx / lastCount) * 100;
+            var endPct = (endIdx / lastCount) * 100;
+            handleStart.style.left = startPct + '%';
+            handleEnd.style.left = endPct + '%';
+            fill.style.left = startPct + '%';
+            fill.style.width = (endPct - startPct) + '%';
+
+            var months = slice(startIdx, endIdx);
+            rangeLbl.textContent = rangeLabel(months);
+            metaLbl.textContent = months.length + ' mo · ' + fmt(sumAmount(months)) + ' total';
+            renderChips(chipsEl, months, function () { /* individual remove not applicable to a range */ }, null);
+            // For a contiguous range, clicking a chip's "x" doesn't make sense per-month;
+            // swap in a single "clear range" affordance instead.
+            chipsEl.querySelectorAll('.chip-remove').forEach(function (el) { el.style.display = 'none'; });
+        }
+        render();
+    })();
+
+    // ============================================================
+    // OPTION 4 — searchable, collapsible multi-select checklist
+    // ============================================================
+    (function option4() {
+        var trigger = document.getElementById('p4-trigger');
+        var popover = document.getElementById('p4-popover');
+        var label = document.getElementById('p4-label');
+        var searchEl = document.getElementById('p4-search');
+        var listEl = document.getElementById('p4-list');
+        var countEl = document.getElementById('p4-count');
+        var clearBtn = document.getElementById('p4-clear');
+        var applyBtn = document.getElementById('p4-apply');
+        var chipsEl = document.getElementById('p4-chips');
+
+        var pendingKeys = [];
+        var appliedKeys = [];
+        var collapsedYears = {};
+        var query = '';
+
+        function renderList() {
+            listEl.innerHTML = '';
+            var q = query.trim().toLowerCase();
+            var anyVisible = false;
+
+            YEARS.slice().reverse().forEach(function (year) {
+                var monthsInYear = MONTHS.filter(function (m) {
+                    return m.year === year && m.label.toLowerCase().indexOf(q) !== -1;
+                });
+                if (monthsInYear.length === 0) return;
+                anyVisible = true;
+
+                var header = document.createElement('div');
+                header.className = 'proto-year-group-header' + (collapsedYears[year] ? ' collapsed' : '');
+                header.innerHTML = '<span>' + year + '</span><span class="toggle">▾</span>';
+                header.addEventListener('click', function () {
+                    collapsedYears[year] = !collapsedYears[year];
+                    renderList();
+                });
+                listEl.appendChild(header);
+
+                var body = document.createElement('div');
+                body.className = 'proto-year-group-body' + (collapsedYears[year] ? ' collapsed' : '');
+                monthsInYear.forEach(function (m) {
+                    var row = document.createElement('div');
+                    row.className = 'proto-check-row';
+                    var checked = pendingKeys.indexOf(m.key) !== -1;
+                    row.innerHTML = '<span class="proto-checkbox' + (checked ? ' checked' : '') + '"></span>' +
+                        '<span>' + m.label + '</span>' +
+                        '<span class="proto-check-amount">' + fmt(m.amount) + '</span>';
+                    row.addEventListener('click', function () {
+                        var idx = pendingKeys.indexOf(m.key);
+                        if (idx === -1) pendingKeys.push(m.key); else pendingKeys.splice(idx, 1);
+                        renderList();
+                    });
+                    body.appendChild(row);
+                });
+                listEl.appendChild(body);
+            });
+
+            if (!anyVisible) {
+                var empty = document.createElement('div');
+                empty.className = 'proto-check-empty';
+                empty.textContent = 'No months match "' + query + '"';
+                listEl.appendChild(empty);
+            }
+            countEl.textContent = pendingKeys.length + ' selected';
+        }
+
+        searchEl.addEventListener('input', function () { query = searchEl.value; renderList(); });
+        trigger.addEventListener('click', function () {
+            pendingKeys = appliedKeys.slice();
+            togglePopover(trigger, popover);
+            renderList();
+        });
+        clearBtn.addEventListener('click', function () { pendingKeys = []; renderList(); });
+        applyBtn.addEventListener('click', function () {
+            appliedKeys = pendingKeys.slice();
+            commit();
+            popover.classList.remove('open');
+            trigger.classList.remove('open');
+        });
+        registerPopover(trigger, popover);
+
+        function commit() {
+            var months = MONTHS.filter(function (m) { return appliedKeys.indexOf(m.key) !== -1; });
+            label.textContent = months.length === 0 ? 'Date filter' :
+                (months.length === 1 ? months[0].label : months.length + ' months selected');
+            renderChips(chipsEl, months, function (key) {
+                appliedKeys = appliedKeys.filter(function (k) { return k !== key; });
+                commit();
+            }, function () { appliedKeys = []; commit(); });
+        }
+        commit();
+    })();
+
+    // ============================================================
+    // OPTION 5 — preset button that swaps to a custom range builder
+    // ============================================================
+    (function option5() {
+        var trigger = document.getElementById('p5-trigger');
+        var popover = document.getElementById('p5-popover');
+        var label = document.getElementById('p5-label');
+        var presetsEl = document.getElementById('p5-presets');
+        var presetView = document.getElementById('p5-preset-view');
+        var customView = document.getElementById('p5-custom-view');
+        var backBtn = document.getElementById('p5-back');
+        var fromSel = document.getElementById('p5-from');
+        var toSel = document.getElementById('p5-to');
+        var applyCustomBtn = document.getElementById('p5-apply-custom');
+        var chipsEl = document.getElementById('p5-chips');
+
+        var PRESETS = [
+            { label: 'This Month', keys: function () { return [MONTHS[TODAY_IDX].key]; } },
+            { label: 'Last 3 Months', keys: function () { return slice(TODAY_IDX - 2, TODAY_IDX).map(function (m) { return m.key; }); } },
+            { label: 'Last 6 Months', keys: function () { return slice(TODAY_IDX - 5, TODAY_IDX).map(function (m) { return m.key; }); } },
+            { label: 'Year to Date', keys: function () { return MONTHS.filter(function (m) { return m.year === MONTHS[TODAY_IDX].year; }).map(function (m) { return m.key; }); } },
+            { label: 'Last 12 Months', keys: function () { return slice(TODAY_IDX - 11, TODAY_IDX).map(function (m) { return m.key; }); } },
+            { label: 'All Time', keys: function () { return MONTHS.map(function (m) { return m.key; }); } }
+        ];
+
+        var appliedKeys = PRESETS[5].keys(); // default: All Time
+        var activePresetLabel = 'All Time';
+
+        PRESETS.forEach(function (preset) {
+            var item = document.createElement('div');
+            item.className = 'proto-preset-item';
+            item.textContent = preset.label;
+            item.addEventListener('click', function () {
+                appliedKeys = preset.keys();
+                activePresetLabel = preset.label;
+                commit();
+                popover.classList.remove('open');
+                trigger.classList.remove('open');
+            });
+            presetsEl.appendChild(item);
+        });
+        var divider = document.createElement('div');
+        divider.className = 'proto-preset-divider';
+        presetsEl.appendChild(divider);
+        var customItem = document.createElement('div');
+        customItem.className = 'proto-preset-item';
+        customItem.innerHTML = '<span>Custom Range…</span><span class="arrow">›</span>';
+        customItem.addEventListener('click', function () {
+            presetView.style.display = 'none';
+            customView.style.display = 'block';
+        });
+        presetsEl.appendChild(customItem);
+
+        MONTHS.forEach(function (m) {
+            var o1 = document.createElement('option');
+            o1.value = m.key; o1.textContent = m.label;
+            fromSel.appendChild(o1);
+            var o2 = document.createElement('option');
+            o2.value = m.key; o2.textContent = m.label;
+            toSel.appendChild(o2);
+        });
+        fromSel.value = MONTHS[TODAY_IDX - 5].key;
+        toSel.value = MONTHS[TODAY_IDX].key;
+
+        backBtn.addEventListener('click', function () {
+            customView.style.display = 'none';
+            presetView.style.display = 'block';
+        });
+        applyCustomBtn.addEventListener('click', function () {
+            var startIdx = MONTHS.findIndex(function (m) { return m.key === fromSel.value; });
+            var endIdx = MONTHS.findIndex(function (m) { return m.key === toSel.value; });
+            if (startIdx > endIdx) { var t = startIdx; startIdx = endIdx; endIdx = t; }
+            appliedKeys = slice(startIdx, endIdx).map(function (m) { return m.key; });
+            activePresetLabel = null;
+            commit();
+            popover.classList.remove('open');
+            trigger.classList.remove('open');
+            customView.style.display = 'none';
+            presetView.style.display = 'block';
+        });
+
+        trigger.addEventListener('click', function () {
+            presetsEl.querySelectorAll('.proto-preset-item').forEach(function (item) {
+                item.classList.toggle('active', item.textContent === activePresetLabel);
+            });
+            togglePopover(trigger, popover);
+        });
+        registerPopover(trigger, popover);
+
+        function commit() {
+            var months = MONTHS.filter(function (m) { return appliedKeys.indexOf(m.key) !== -1; });
+            label.textContent = activePresetLabel || rangeLabel(months) || 'All Time';
+            renderChips(chipsEl, months, function (key) {
+                appliedKeys = appliedKeys.filter(function (k) { return k !== key; });
+                activePresetLabel = null;
+                commit();
+            }, function () { appliedKeys = []; activePresetLabel = null; commit(); });
+        }
+        commit();
+    })();
+
+    // ============================================================
+    // Shared helpers for Options 6 & 7 — "structured categories" popover:
+    // This/Last Month/Quarter/Year presets + a year-tabbed month grid,
+    // all staging into one pending list that only becomes chips on Apply.
+    // ============================================================
+    function pad2(n) { return String(n).padStart(2, '0'); }
+    function quarterOf(monthNum) { return Math.ceil(monthNum / 3); }
+    var TODAY_MONTH_OBJ = MONTHS[TODAY_IDX];
+    var TODAY_MONTH_NUM = parseInt(TODAY_MONTH_OBJ.key.split('-')[1], 10);
+    var TODAY_QUARTER = quarterOf(TODAY_MONTH_NUM);
+    var MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    function monthKeyLabel(key) {
+        var parts = key.split('-');
+        return MONTH_NAMES[parseInt(parts[1], 10) - 1] + ' ' + parts[0];
+    }
+    function quarterMonthKeys(year, q) {
+        var startM = (q - 1) * 3 + 1;
+        return [startM, startM + 1, startM + 2].map(function (m) { return year + '-' + pad2(m); });
+    }
+    function yearMonthKeys(year) {
+        var out = [];
+        for (var m = 1; m <= 12; m++) out.push(year + '-' + pad2(m));
+        return out;
+    }
+    // Every "quick selector" (This/Last Month/Quarter/Year) and every grid pick
+    // resolves down to this same flat list of calendar months it represents —
+    // that's what lets quarter/year presets, individual month clicks, and
+    // aggregation-on-Apply all share one detection/toggle path.
+    function monthsForItem(item) {
+        if (item.type === 'month') return [item.key];
+        if (item.type === 'quarter') {
+            var parts = item.key.split('-Q');
+            return quarterMonthKeys(parseInt(parts[0], 10), parseInt(parts[1], 10));
+        }
+        if (item.type === 'year') return yearMonthKeys(parseInt(item.key, 10));
+        return [];
+    }
+    // Greedily re-compresses a flat set of calendar months back into the
+    // fewest chips: a full year first, then any full quarters left in that
+    // year, then whatever individual months remain. Never touches daterange
+    // entries — those are folded in by the caller afterward, untouched.
+    function aggregateMonthKeys(monthKeys) {
+        var remaining = {};
+        monthKeys.forEach(function (k) { remaining[k] = true; });
+        var byYear = {};
+        monthKeys.forEach(function (k) { (byYear[k.slice(0, 4)] = byYear[k.slice(0, 4)] || []).push(k); });
+
+        var results = [];
+        Object.keys(byYear).sort().forEach(function (yearStr) {
+            var year = parseInt(yearStr, 10);
+            if (yearMonthKeys(year).every(function (k) { return remaining[k]; })) {
+                results.push({ type: 'year', key: yearStr, label: yearStr });
+                yearMonthKeys(year).forEach(function (k) { delete remaining[k]; });
+                return;
+            }
+            for (var q = 1; q <= 4; q++) {
+                var qMonths = quarterMonthKeys(year, q);
+                if (qMonths.every(function (k) { return remaining[k]; })) {
+                    results.push({ type: 'quarter', key: yearStr + '-Q' + q, label: 'Q' + q + ' ' + yearStr });
+                    qMonths.forEach(function (k) { delete remaining[k]; });
+                }
+            }
+        });
+        Object.keys(remaining).sort().forEach(function (k) {
+            results.push({ type: 'month', key: k, label: monthKeyLabel(k) });
+        });
+        return results;
+    }
+
+    function thisLastPresetDefs() {
+        var lastMonthNum = TODAY_MONTH_NUM - 1, lastMonthYear = TODAY_MONTH_OBJ.year;
+        if (lastMonthNum < 1) { lastMonthNum = 12; lastMonthYear -= 1; }
+        var lastMonthKey = lastMonthYear + '-' + pad2(lastMonthNum);
+        var lastMonthObj = monthByKey(lastMonthKey);
+
+        var lastQ = TODAY_QUARTER - 1, lastQYear = TODAY_MONTH_OBJ.year;
+        if (lastQ < 1) { lastQ = 4; lastQYear -= 1; }
+        var lastYear = TODAY_MONTH_OBJ.year - 1;
+
+        return {
+            thisRow: [
+                { label: 'This Month', type: 'month', key: TODAY_MONTH_OBJ.key },
+                { label: 'This Quarter', type: 'quarter', key: TODAY_MONTH_OBJ.year + '-Q' + TODAY_QUARTER },
+                { label: 'This Year', type: 'year', key: String(TODAY_MONTH_OBJ.year) }
+            ],
+            lastRow: [
+                { label: 'Last Month', type: 'month', key: lastMonthKey },
+                { label: 'Last Quarter', type: 'quarter', key: lastQYear + '-Q' + lastQ },
+                { label: 'Last Year', type: 'year', key: String(lastYear) }
+            ]
+        };
+    }
+
+    // cfg: { trigger, popover, label, thisRowEl, lastRowEl, yearsEl, gridEl, chipsEl,
+    //        clearAllBtn, applyBtn,
+    //        getCustomEntry(): {type:'daterange',key,label} | null   -- read current custom-range widget state
+    //        clearCustomWidget(): void }
+    function createStructuredPopover(cfg) {
+        var presets = thisLastPresetDefs();
+        // pending always holds flat {type:'month',key,label} entries, one per
+        // selected calendar month — regardless of whether a month got there via
+        // an individual grid click or a This/Last Quarter/Year preset. That's
+        // what makes "did I fully pick this quarter/year" a plain coverage
+        // check instead of separate state to keep in sync.
+        var pending = [];
+        var applied = []; // aggregated chips (month/quarter/year) + independent daterange entries
+        var activeYear = TODAY_MONTH_OBJ.year;
+
+        function findIdx(list, type, key) {
+            for (var i = 0; i < list.length; i++) if (list[i].type === type && list[i].key === key) return i;
+            return -1;
+        }
+        function isItemActive(item) {
+            var months = monthsForItem(item);
+            return months.length > 0 && months.every(function (k) { return findIdx(pending, 'month', k) !== -1; });
+        }
+        function toggleItem(item) {
+            var months = monthsForItem(item);
+            var active = isItemActive(item);
+            months.forEach(function (k) {
+                var idx = findIdx(pending, 'month', k);
+                if (active) { if (idx !== -1) pending.splice(idx, 1); }
+                else if (idx === -1) { pending.push({ type: 'month', key: k, label: monthKeyLabel(k) }); }
+            });
+        }
+
+        function renderThisLast() {
+            [[cfg.thisRowEl, presets.thisRow], [cfg.lastRowEl, presets.lastRow]].forEach(function (pair) {
+                var el = pair[0], items = pair[1];
+                el.innerHTML = '';
+                items.forEach(function (item) {
+                    var btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'proto-pill';
+                    btn.textContent = item.label;
+                    btn.classList.toggle('active', isItemActive(item));
+                    btn.addEventListener('click', function () {
+                        toggleItem(item);
+                        renderAll();
+                    });
+                    el.appendChild(btn);
+                });
+            });
+        }
+
+        function renderYearTabs() {
+            cfg.yearsEl.innerHTML = '';
+            YEARS.forEach(function (year) {
+                var tab = document.createElement('div');
+                tab.className = 'proto-year-tab';
+                var hasSelection = pending.some(function (p) { return p.key.slice(0, 4) === String(year); });
+                tab.classList.toggle('active', year === activeYear);
+                tab.innerHTML = '<span>' + year + '</span>' + (hasSelection ? '<span class="dot"></span>' : '');
+                tab.addEventListener('click', function () { activeYear = year; renderYearTabs(); renderGrid(); });
+                cfg.yearsEl.appendChild(tab);
+            });
+            var clearBtn = document.createElement('button');
+            clearBtn.type = 'button';
+            clearBtn.className = 'proto-link-btn';
+            clearBtn.textContent = 'Clear';
+            clearBtn.addEventListener('click', function () {
+                pending = [];
+                renderAll();
+            });
+            cfg.yearsEl.appendChild(clearBtn);
+        }
+
+        function renderGrid() {
+            cfg.gridEl.innerHTML = '';
+            MONTHS.filter(function (m) { return m.year === activeYear; }).forEach(function (m) {
+                var cell = document.createElement('div');
+                cell.className = 'proto-month-cell';
+                cell.textContent = m.label.split(' ')[0];
+                if (findIdx(pending, 'month', m.key) !== -1) cell.classList.add('selected');
+                cell.addEventListener('click', function () {
+                    toggleItem({ type: 'month', key: m.key });
+                    renderAll();
+                });
+                cfg.gridEl.appendChild(cell);
+            });
+        }
+
+        function renderAll() {
+            renderThisLast();
+            renderYearTabs();
+            renderGrid();
+        }
+
+        function commit() {
+            cfg.label.textContent = applied.length === 0 ? 'Date filter' :
+                (applied.length === 1 ? applied[0].label : applied.length + ' selected');
+            renderChips(cfg.chipsEl, applied, function (key) {
+                applied = applied.filter(function (e) { return e.key !== key; });
+                if (!applied.some(function (e) { return e.type === 'daterange'; })) cfg.clearCustomWidget();
+                commit();
+            }, function () {
+                applied = [];
+                cfg.clearCustomWidget();
+                commit();
+            });
+        }
+
+        cfg.trigger.addEventListener('click', function () {
+            // Expand whatever's currently applied (which may already be
+            // aggregated into quarter/year chips) back into flat months so the
+            // grid/pills reflect it correctly for further editing.
+            pending = [];
+            applied.forEach(function (e) {
+                if (e.type === 'daterange') return;
+                monthsForItem(e).forEach(function (k) {
+                    if (findIdx(pending, 'month', k) === -1) pending.push({ type: 'month', key: k, label: monthKeyLabel(k) });
+                });
+            });
+            activeYear = TODAY_MONTH_OBJ.year;
+            togglePopover(cfg.trigger, cfg.popover);
+            renderAll();
+        });
+        cfg.clearAllBtn.addEventListener('click', function () {
+            pending = [];
+            applied = [];
+            cfg.clearCustomWidget();
+            commit();
+            cfg.popover.classList.remove('open');
+            cfg.trigger.classList.remove('open');
+        });
+        cfg.applyBtn.addEventListener('click', function () {
+            applied = aggregateMonthKeys(pending.map(function (p) { return p.key; }));
+            var customEntry = cfg.getCustomEntry();
+            if (customEntry) applied.push(customEntry);
+            commit();
+            cfg.popover.classList.remove('open');
+            cfg.trigger.classList.remove('open');
+        });
+        registerPopover(cfg.trigger, cfg.popover);
+
+        renderAll();
+        commit();
+    }
+
+    // ---------- Drill-down calendar widget (Option 6's Start/End) ----------
+    // Three views: 'days' (title = clickable Month + Year buttons, grid of days),
+    // 'months' (title = clickable Year, 3x4 grid of months), 'years' (paginated
+    // 3x4 grid of years). Picking a cell in months/years drills back in one level;
+    // picking a day commits the date and closes.
+    function createDrillCalendar(cfg) {
+        // cfg: { textInput, calBtn, calPopoverEl, onChange(dateObjOrNull) }
+        var MN_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        var MN_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        var view = 'days';
+        var viewYear, viewMonth, yearPageStart;
+        var selected = null; // { y, m, d }
+
+        function today() { var d = new Date(); return { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate() }; }
+        function alignPage(y) { return Math.floor((y - 1) / 12) * 12 + 1; }
+        function resetViewToSelectionOrToday() {
+            var base = selected || today();
+            viewYear = base.y; viewMonth = base.m;
+            yearPageStart = alignPage(viewYear);
+        }
+        function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
+        function firstWeekday(y, m) { return new Date(y, m - 1, 1).getDay(); }
+        function fmtDate(dt) { return MN_SHORT[dt.m - 1] + ' ' + dt.d + ', ' + dt.y; }
+        function parseTyped(str) {
+            str = (str || '').trim();
+            if (!str) return null;
+            var m1 = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+            if (m1) return { y: +m1[1], m: +m1[2], d: +m1[3] };
+            var m2 = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (m2) return { y: +m2[3], m: +m2[1], d: +m2[2] };
+            var d = new Date(str);
+            if (!isNaN(d.getTime())) return { y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate() };
+            return null;
+        }
+
+        function headerRow(onLeft, onRight, centerEl) {
+            var row = document.createElement('div');
+            row.className = 'proto-cal-header';
+            var left = document.createElement('button');
+            left.type = 'button'; left.className = 'proto-cal-nav'; left.textContent = '‹';
+            left.addEventListener('click', function (e) { e.stopPropagation(); onLeft(); });
+            var right = document.createElement('button');
+            right.type = 'button'; right.className = 'proto-cal-nav'; right.textContent = '›';
+            right.addEventListener('click', function (e) { e.stopPropagation(); onRight(); });
+            var center = document.createElement('div');
+            center.className = 'proto-cal-title';
+            center.appendChild(centerEl);
+            row.appendChild(left); row.appendChild(center); row.appendChild(right);
+            return row;
+        }
+        function drillBtn(text, onClick) {
+            var b = document.createElement('button');
+            b.type = 'button'; b.className = 'proto-cal-drill'; b.textContent = text;
+            b.addEventListener('click', function (e) { e.stopPropagation(); onClick(); });
+            return b;
+        }
+
+        function render() {
+            cfg.calPopoverEl.innerHTML = '';
+            if (view === 'days') renderDays();
+            else if (view === 'months') renderMonths();
+            else renderYears();
+        }
+
+        function renderDays() {
+            var titleWrap = document.createElement('span');
+            titleWrap.appendChild(drillBtn(MN_LONG[viewMonth - 1], function () { view = 'months'; render(); }));
+            titleWrap.appendChild(document.createTextNode(' '));
+            titleWrap.appendChild(drillBtn(String(viewYear), function () { yearPageStart = alignPage(viewYear); view = 'years'; render(); }));
+            cfg.calPopoverEl.appendChild(headerRow(
+                function () { viewMonth--; if (viewMonth < 1) { viewMonth = 12; viewYear--; } render(); },
+                function () { viewMonth++; if (viewMonth > 12) { viewMonth = 1; viewYear++; } render(); },
+                titleWrap
+            ));
+
+            var dow = document.createElement('div'); dow.className = 'proto-cal-dow';
+            ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(function (d) { var s = document.createElement('span'); s.textContent = d; dow.appendChild(s); });
+            cfg.calPopoverEl.appendChild(dow);
+
+            var grid = document.createElement('div'); grid.className = 'proto-cal-days';
+            var blanks = firstWeekday(viewYear, viewMonth);
+            for (var i = 0; i < blanks; i++) { var b = document.createElement('span'); b.className = 'proto-cal-day empty'; grid.appendChild(b); }
+            var total = daysInMonth(viewYear, viewMonth);
+            var t = today();
+            for (var d = 1; d <= total; d++) {
+                var cell = document.createElement('button');
+                cell.type = 'button'; cell.className = 'proto-cal-day'; cell.textContent = String(d);
+                if (selected && selected.y === viewYear && selected.m === viewMonth && selected.d === d) cell.classList.add('selected');
+                if (t.y === viewYear && t.m === viewMonth && t.d === d) cell.classList.add('today');
+                (function (dd) {
+                    cell.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                        selected = { y: viewYear, m: viewMonth, d: dd };
+                        cfg.textInput.value = fmtDate(selected);
+                        cfg.textInput.classList.remove('invalid');
+                        cfg.calPopoverEl.classList.remove('open');
+                        cfg.onChange(selected);
+                    });
+                })(d);
+                grid.appendChild(cell);
+            }
+            cfg.calPopoverEl.appendChild(grid);
+        }
+
+        function renderMonths() {
+            var titleWrap = document.createElement('span');
+            titleWrap.appendChild(drillBtn(String(viewYear), function () { yearPageStart = alignPage(viewYear); view = 'years'; render(); }));
+            cfg.calPopoverEl.appendChild(headerRow(
+                function () { viewYear--; render(); },
+                function () { viewYear++; render(); },
+                titleWrap
+            ));
+            var grid = document.createElement('div'); grid.className = 'proto-cal-months';
+            MN_SHORT.forEach(function (name, i) {
+                var cell = document.createElement('button');
+                cell.type = 'button'; cell.className = 'proto-cal-cell'; cell.textContent = name;
+                if (selected && selected.y === viewYear && selected.m === i + 1) cell.classList.add('selected');
+                cell.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    viewMonth = i + 1;
+                    view = 'days';
+                    render();
+                });
+                grid.appendChild(cell);
+            });
+            cfg.calPopoverEl.appendChild(grid);
+        }
+
+        function renderYears() {
+            var pageEnd = yearPageStart + 11;
+            var titleWrap = document.createElement('span');
+            titleWrap.textContent = yearPageStart + '–' + pageEnd;
+            cfg.calPopoverEl.appendChild(headerRow(
+                function () { yearPageStart -= 12; render(); },
+                function () { yearPageStart += 12; render(); },
+                titleWrap
+            ));
+            var grid = document.createElement('div'); grid.className = 'proto-cal-years';
+            for (var y = yearPageStart; y <= pageEnd; y++) {
+                (function (yy) {
+                    var cell = document.createElement('button');
+                    cell.type = 'button'; cell.className = 'proto-cal-cell'; cell.textContent = String(yy);
+                    if (selected && selected.y === yy) cell.classList.add('selected');
+                    cell.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                        viewYear = yy;
+                        view = 'months';
+                        render();
+                    });
+                    grid.appendChild(cell);
+                })(y);
+            }
+            cfg.calPopoverEl.appendChild(grid);
+        }
+
+        cfg.calBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var willOpen = !cfg.calPopoverEl.classList.contains('open');
+            document.querySelectorAll('.proto-cal-popover.open').forEach(function (el) { el.classList.remove('open'); });
+            if (willOpen) {
+                resetViewToSelectionOrToday();
+                view = 'days';
+                render();
+                cfg.calPopoverEl.classList.add('open');
+            }
+        });
+        cfg.calPopoverEl.addEventListener('click', function (e) { e.stopPropagation(); });
+        cfg.textInput.addEventListener('change', function () {
+            var parsed = parseTyped(cfg.textInput.value);
+            if (parsed) {
+                selected = parsed;
+                cfg.textInput.value = fmtDate(parsed);
+                cfg.textInput.classList.remove('invalid');
+                cfg.onChange(parsed);
+            } else if (cfg.textInput.value.trim() === '') {
+                selected = null;
+                cfg.textInput.classList.remove('invalid');
+                cfg.onChange(null);
+            } else {
+                cfg.textInput.classList.add('invalid');
+            }
+        });
+
+        return {
+            setDate: function (dt) { selected = dt; cfg.textInput.value = dt ? fmtDate(dt) : ''; },
+            clear: function () { selected = null; cfg.textInput.value = ''; cfg.textInput.classList.remove('invalid'); }
+        };
+    }
+
+    // ============================================================
+    // OPTION 6 — structured categories + drill-down calendar
+    // ============================================================
+    (function option6() {
+        function toKey(dt) { return dt.y + '-' + pad2(dt.m) + '-' + pad2(dt.d); }
+        function fmtRange(a, b) {
+            var MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            var startPart = MN[a.m - 1] + ' ' + a.d + (a.y !== b.y ? ', ' + a.y : '');
+            return startPart + ' – ' + MN[b.m - 1] + ' ' + b.d + ', ' + b.y;
+        }
+
+        var startDate = null, endDate = null;
+        var startWidget = createDrillCalendar({
+            textInput: document.getElementById('p6-start-text'),
+            calBtn: document.getElementById('p6-start-cal-btn'),
+            calPopoverEl: document.getElementById('p6-start-cal'),
+            onChange: function (dt) { startDate = dt; }
+        });
+        var endWidget = createDrillCalendar({
+            textInput: document.getElementById('p6-end-text'),
+            calBtn: document.getElementById('p6-end-cal-btn'),
+            calPopoverEl: document.getElementById('p6-end-cal'),
+            onChange: function (dt) { endDate = dt; }
+        });
+
+        createStructuredPopover({
+            trigger: document.getElementById('p6-trigger'),
+            popover: document.getElementById('p6-popover'),
+            label: document.getElementById('p6-label'),
+            thisRowEl: document.getElementById('p6-this'),
+            lastRowEl: document.getElementById('p6-last'),
+            yearsEl: document.getElementById('p6-years'),
+            gridEl: document.getElementById('p6-grid'),
+            chipsEl: document.getElementById('p6-chips'),
+            clearAllBtn: document.getElementById('p6-clear-all'),
+            applyBtn: document.getElementById('p6-apply'),
+            getCustomEntry: function () {
+                if (!startDate || !endDate) return null;
+                var a = startDate, b = endDate;
+                if (toKey(a) > toKey(b)) { var t = a; a = b; b = t; }
+                return { type: 'daterange', key: toKey(a) + '..' + toKey(b), label: fmtRange(a, b) };
+            },
+            clearCustomWidget: function () {
+                startDate = null; endDate = null;
+                startWidget.clear(); endWidget.clear();
+            }
+        });
+    })();
+
+    // ============================================================
+    // OPTION 7 — structured categories + native date inputs
+    // ============================================================
+    (function option7() {
+        var startInput = document.getElementById('p7-start-date');
+        var endInput = document.getElementById('p7-end-date');
+
+        function fmtRange(startStr, endStr) {
+            var MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            function fmt(str) { var p = str.split('-'); return MN[parseInt(p[1], 10) - 1] + ' ' + parseInt(p[2], 10); }
+            var startYear = startStr.split('-')[0], endYear = endStr.split('-')[0];
+            var startPart = fmt(startStr) + (startYear !== endYear ? ', ' + startYear : '');
+            return startPart + ' – ' + fmt(endStr) + ', ' + endYear;
+        }
+
+        createStructuredPopover({
+            trigger: document.getElementById('p7-trigger'),
+            popover: document.getElementById('p7-popover'),
+            label: document.getElementById('p7-label'),
+            thisRowEl: document.getElementById('p7-this'),
+            lastRowEl: document.getElementById('p7-last'),
+            yearsEl: document.getElementById('p7-years'),
+            gridEl: document.getElementById('p7-grid'),
+            chipsEl: document.getElementById('p7-chips'),
+            clearAllBtn: document.getElementById('p7-clear-all'),
+            applyBtn: document.getElementById('p7-apply'),
+            getCustomEntry: function () {
+                if (!startInput.value || !endInput.value) return null;
+                var a = startInput.value, b = endInput.value;
+                if (a > b) { var t = a; a = b; b = t; }
+                return { type: 'daterange', key: a + '..' + b, label: fmtRange(a, b) };
+            },
+            clearCustomWidget: function () { startInput.value = ''; endInput.value = ''; }
+        });
+    })();
+
+    // ============================================================
+    // Theme toggle
+    // ============================================================
+    var themeBtn = document.getElementById('themeToggle');
+    var isDark = true;
+    themeBtn.addEventListener('click', function () {
+        isDark = !isDark;
+        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+        themeBtn.textContent = isDark ? '🌙' : '☀️';
+    });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Spending Report Settings Prototype</title>
+  <style>
+    :root {
+      color-scheme: light;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font: 14px/1.4 "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+      color: #0f172a;
+    }
+
+    main {
+      width: min(560px, calc(100vw - 32px));
+      padding: 20px;
+      border: 1px solid #dbe2ea;
+      border-radius: 12px;
+      background: #ffffff;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 170px 1fr;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    select,
+    button,
+    input[type="checkbox"] {
+      font: inherit;
+    }
+
+    select,
+    button {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #fff;
+      padding: 8px 10px;
+    }
+
+    button {
+      cursor: pointer;
+      width: fit-content;
+    }
+
+    .actions {
+      margin-top: 4px;
+      display: flex;
+      gap: 10px;
+    }
+
+    #status {
+      margin-top: 12px;
+      min-height: 1.4em;
+      color: #0f766e;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Spending Report Settings</h1>
+
+    <div class="row">
+      <label for="theme">Theme</label>
+      <select id="theme">
+        <option value="light">Light</option>
+        <option value="print">Print</option>
+        <option value="dense">Dense</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label for="showIncome">Show income rows</label>
+      <input id="showIncome" type="checkbox" />
+    </div>
+
+    <div class="row">
+      <label for="groupMode">Group mode</label>
+      <select id="groupMode">
+        <option value="merchant">Merchant</option>
+        <option value="category">Category</option>
+        <option value="month">Month</option>
+      </select>
+    </div>
+
+    <div class="actions">
+      <button id="resetBtn" type="button">Reset Defaults</button>
+    </div>
+
+    <div id="status" aria-live="polite"></div>
+  </main>
+
+  <script>
+    const SETTINGS_KEY = "tally.spendingreport.settings.v1";
+
+    const defaults = {
+      theme: "light",
+      showIncome: false,
+      groupMode: "category"
+    };
+
+    function setStatus(msg, isError = false) {
+      const el = document.getElementById("status");
+      el.textContent = msg;
+      el.style.color = isError ? "#a00" : "#0a5";
+    }
+
+    function collectSettingsFromUI() {
+      return {
+        theme: document.getElementById("theme").value,
+        showIncome: document.getElementById("showIncome").checked,
+        groupMode: document.getElementById("groupMode").value
+      };
+    }
+
+    function applySettingsToUI(s) {
+      document.getElementById("theme").value = s.theme ?? defaults.theme;
+      document.getElementById("showIncome").checked = !!s.showIncome;
+      document.getElementById("groupMode").value = s.groupMode ?? defaults.groupMode;
+    }
+
+    function safeLoadFromLocalStorage() {
+      try {
+        const raw = localStorage.getItem(SETTINGS_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    }
+
+    function safeSaveToLocalStorage(settings) {
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function mergeWithDefaults(obj) {
+      return { ...defaults, ...(obj || {}) };
+    }
+
+    function saveNow() {
+      const settings = collectSettingsFromUI();
+      const ok = safeSaveToLocalStorage(settings);
+      if (ok) setStatus("Settings saved locally.");
+      else setStatus("Local save blocked in this browser context.", true);
+    }
+
+    function resetNow() {
+      applySettingsToUI(defaults);
+      try {
+        localStorage.removeItem(SETTINGS_KEY);
+        setStatus("Defaults restored and local settings cleared.");
+      } catch {
+        setStatus("Could not clear local settings.", true);
+      }
+    }
+
+    const loaded = mergeWithDefaults(safeLoadFromLocalStorage() || defaults);
+    applySettingsToUI(loaded);
+    setStatus("Ready. Changes are auto-saved.");
+
+    document.getElementById("resetBtn").addEventListener("click", resetNow);
+
+    ["theme", "showIncome", "groupMode"].forEach(id => {
+      document.getElementById(id).addEventListener("change", saveNow);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tally · Charts Reimagined — Prototype Gallery</title>
+<style>
+/* ============================================================
+   Tokens — lifted verbatim from spending_report.css so the
+   prototype sits inside the shipping visual system.
+   ============================================================ */
+:root {
+    --bg-gradient-start: #1a1a2e;
+    --bg-gradient-end: #16213e;
+    --bg-card: rgba(255,255,255,0.05);
+    --bg-card-hover: rgba(255,255,255,0.08);
+    --bg-table: rgba(255,255,255,0.03);
+    --bg-tooltip: rgba(0,0,0,0.9);
+    --text-primary: #e8e8e8;
+    --text-secondary: #888;
+    --text-muted: #666;
+    --text-lighter: #aaa;
+    --text-tooltip: #fff;
+    --border-light: rgba(255,255,255,0.1);
+    --border-medium: rgba(255,255,255,0.2);
+    --shadow-card: rgba(0,0,0,0.3);
+
+    --accent-blue: #4facfe;
+    --accent-blue-light: #00f2fe;
+    --accent-cyan: #4dffd2;
+    --accent-orange: #ffa94d;
+    --accent-yellow: #f5af19;
+    --accent-pink: #f093fb;
+    --accent-red: #ff6b6b;
+    --accent-green: #4ade80;
+
+    /* Chart series tokens (categorical order is fixed; color follows the
+       entity, never its rank). Drawn from the report's CATEGORY_COLORS. */
+    --cat-1: #4facfe;   /* Housing  */
+    --cat-2: #ffa94d;   /* Food     */
+    --cat-3: #4dffd2;   /* Shopping */
+    --cat-4: #f093fb;   /* Travel   */
+    --cat-5: #f5af19;   /* Transport*/
+    --cat-other: #6b7280;
+    --flow-income: #00c9a7;   /* matches CASH_FLOW_SERIES in spending_report.js */
+    --flow-spending: #4facfe;
+    --flow-net: #f5af19;
+    --surface: #20243f; /* effective card surface over the gradient — used for gaps/rings */
+}
+[data-theme="light"] {
+    --bg-gradient-start: #f0f4f8;
+    --bg-gradient-end: #ffffff;
+    --bg-card: rgba(0,0,0,0.03);
+    --bg-card-hover: rgba(0,0,0,0.06);
+    --bg-table: rgba(0,0,0,0.02);
+    --bg-tooltip: rgba(30,30,30,0.95);
+    --text-primary: #1a1a2e;
+    --text-secondary: #555;
+    --text-muted: #777;
+    --text-lighter: #555;
+    --border-light: rgba(0,0,0,0.08);
+    --border-medium: rgba(0,0,0,0.12);
+    --shadow-card: rgba(0,0,0,0.1);
+
+    --accent-blue: #2563eb;
+    --accent-cyan: #0d9488;
+    --accent-orange: #ea580c;
+    --accent-yellow: #ca8a04;
+    --accent-pink: #c026d3;
+    --accent-red: #dc2626;
+    --accent-green: #16a34a;
+
+    --cat-1: #2563eb;
+    --cat-2: #ea580c;
+    --cat-3: #0d9488;
+    --cat-4: #c026d3;
+    --cat-5: #ca8a04;
+    --cat-other: #6b7280;
+    --flow-income: #0d9488;
+    --flow-spending: #2563eb;
+    --flow-net: #ca8a04;
+    --surface: #f4f7fa;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 2rem;
+}
+.container { max-width: 1200px; margin: 0 auto; }
+
+header {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-light);
+    position: relative;
+}
+h1 {
+    font-size: 2.5rem;
+    font-weight: 300;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-blue-light));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.subtitle { color: var(--text-secondary); font-size: 0.9rem; }
+.theme-toggle {
+    position: absolute; top: 0; right: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-medium);
+    border-radius: 50%;
+    width: 36px; height: 36px;
+    cursor: pointer; font-size: 1.1rem;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+}
+.theme-toggle:hover { background: var(--bg-card-hover); transform: scale(1.1); }
+
+/* ---------- gallery card chrome (same recipe as .card / .chart-container) */
+.concept {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 16px;
+    padding: 1.5rem;
+    backdrop-filter: blur(10px);
+    margin-bottom: 2rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.concept:hover { box-shadow: 0 8px 30px var(--shadow-card); }
+.concept .eyebrow {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--accent-blue);
+    margin-bottom: 0.35rem;
+}
+.concept h2 {
+    font-size: 1.15rem;
+    font-weight: 500;
+    margin-bottom: 0.35rem;
+}
+.concept .rationale {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    max-width: 68ch;
+    margin-bottom: 1.25rem;
+    line-height: 1.5;
+}
+.two-col {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+@media (min-width: 1024px) {
+    .two-col { grid-template-columns: 3fr 2fr; }
+    .two-col .concept { margin-bottom: 0; }
+}
+
+/* ---------- KPI stat tiles */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 1rem;
+}
+.stat-tile {
+    background: var(--bg-table);
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    padding: 1.1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-width: 0;
+}
+.stat-tile .label {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-secondary);
+}
+.stat-tile .value {
+    font-size: 1.9rem;
+    font-weight: 600;
+    line-height: 1.1;
+}
+.stat-tile .value.pos { color: var(--accent-green); }
+.stat-tile .delta { font-size: 0.8rem; display: flex; align-items: center; gap: 0.35rem; }
+.stat-tile .delta .arrow { font-weight: 700; }
+.stat-tile .delta.up-good  { color: var(--accent-green); }
+.stat-tile .delta.up-bad   { color: var(--accent-red); }
+.stat-tile .delta.down-good{ color: var(--accent-green); }
+.stat-tile .delta .vs { color: var(--text-muted); }
+.stat-tile .spark { margin-top: 0.35rem; }
+.stat-tile .meter {
+    margin-top: 0.5rem;
+    height: 8px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--accent-blue) 16%, transparent);
+    overflow: hidden;
+}
+.stat-tile .meter .fill {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--accent-blue);
+}
+.stat-tile .footnote { font-size: 0.75rem; color: var(--text-muted); }
+
+/* ---------- shared chart chrome */
+.legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.1rem;
+    margin-bottom: 0.9rem;
+    font-size: 0.8rem;
+    color: var(--text-lighter);
+    align-items: center;
+}
+.legend .key { display: inline-flex; align-items: center; gap: 0.45rem; }
+.legend .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.legend .linekey { width: 16px; height: 2px; border-radius: 1px; display: inline-block; }
+.legend .hint { margin-left: auto; font-size: 0.72rem; color: var(--text-muted); }
+
+.chart-svg { width: 100%; height: auto; display: block; }
+.chart-svg text {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-variant-numeric: tabular-nums; /* axis ticks align; big figures stay proportional */
+}
+.axis-tick { font-size: 11px; fill: var(--text-muted); }
+.direct-label {
+    font-size: 11px; fill: var(--text-lighter); font-weight: 600;
+    paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round;
+}
+.gridline { stroke: var(--border-light); stroke-width: 1; }
+.baseline { stroke: var(--border-medium); stroke-width: 1; }
+
+.hit { fill: transparent; cursor: pointer; }
+.col-group.hot rect.mark, .cell.hot, .hbar.hot { filter: brightness(1.25); }
+[data-theme="light"] .col-group.hot rect.mark,
+[data-theme="light"] .cell.hot,
+[data-theme="light"] .hbar.hot { filter: brightness(0.88); }
+
+/* ---------- tooltip (report's tooltip tokens) */
+.viz-tooltip {
+    position: fixed;
+    z-index: 500;
+    pointer-events: none;
+    background: var(--bg-tooltip);
+    color: var(--text-tooltip);
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+    font-size: 0.8rem;
+    min-width: 150px;
+    box-shadow: 0 8px 30px var(--shadow-card);
+    opacity: 0;
+    transition: opacity 0.1s;
+}
+.viz-tooltip.show { opacity: 1; }
+.viz-tooltip .tt-title { font-weight: 600; margin-bottom: 0.35rem; }
+.viz-tooltip .tt-row {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.1rem 0;
+    font-variant-numeric: tabular-nums;
+}
+.viz-tooltip .tt-key { width: 14px; height: 2px; border-radius: 1px; flex: none; }
+.viz-tooltip .tt-val { font-weight: 600; margin-left: auto; }
+.viz-tooltip .tt-name { color: rgba(255,255,255,0.65); }
+
+/* ---------- ranked horizontal bars */
+.ranked { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 1rem; }
+.rank-row {
+    display: grid;
+    grid-template-columns: 108px 1fr;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 0.15rem 0.25rem;
+}
+.rank-row:hover { background: var(--bg-card-hover); }
+.rank-row .rname { font-size: 0.82rem; color: var(--text-lighter); text-align: right; }
+.rank-row .track { position: relative; height: 20px; display: flex; align-items: center; }
+.rank-row .bar { height: 12px; border-radius: 0 4px 4px 0; }
+.rank-row .rval {
+    font-size: 0.78rem; font-weight: 600; margin-left: 0.55rem;
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.rank-row .rpct { color: var(--text-muted); font-weight: 400; margin-left: 0.3rem; }
+.pt-strip { display: flex; height: 16px; border-radius: 4px; overflow: hidden; gap: 2px; margin-bottom: 0.4rem; }
+.pt-strip .seg { height: 100%; }
+.pt-caption { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 0.75rem; }
+
+/* ---------- emphasis chips */
+.chip-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
+.chip {
+    border: 1px solid var(--border-medium);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 999px;
+    padding: 0.3rem 0.85rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex; align-items: center; gap: 0.4rem;
+}
+.chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+.chip:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+.chip.active { border-color: var(--accent-blue); color: var(--text-primary); background: var(--bg-card-hover); font-weight: 600; }
+.chip.active .dot { background: var(--accent-blue); }
+
+/* ---------- heatmap scale legend */
+.scale-legend { display: flex; align-items: center; gap: 0.5rem; font-size: 0.72rem; color: var(--text-muted); margin-top: 0.75rem; }
+.scale-legend .steps { display: flex; gap: 2px; }
+.scale-legend .step { width: 22px; height: 10px; border-radius: 2px; }
+
+footer { text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 1.5rem 0 0.5rem; }
+footer .note { max-width: 72ch; margin: 0 auto 0.75rem; line-height: 1.55; color: var(--text-secondary); }
+</style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Charts, Reimagined</h1>
+        <p class="subtitle">Prototype gallery for the tally spending report &middot; mock data, Jul 2025 &ndash; Jun 2026</p>
+        <button class="theme-toggle" id="themeToggle" title="Switch theme">&#9788;</button>
+    </header>
+
+    <!-- Concept 1: KPI strip -->
+    <section class="concept" id="c-kpi">
+        <div class="eyebrow">Concept 01 &middot; KPI strip</div>
+        <h2>Lead with the numbers, not the chart</h2>
+        <p class="rationale">The summary cards become a compact stat-tile row: value, signed delta vs the prior
+           12 months, and a 12-point sparkline. The one ratio (recurring share) is a meter, not a donut.</p>
+        <div class="kpi-grid" id="kpiGrid"></div>
+    </section>
+
+    <!-- Concept 2: diverging cash flow -->
+    <section class="concept" id="c-flow">
+        <div class="eyebrow">Concept 02 &middot; Cash flow</div>
+        <h2>Income up, spending down, net on top</h2>
+        <p class="rationale">The grouped bars become a diverging column chart on one axis: income grows up,
+           spending grows down, and the net line crosses the baseline exactly where the month went red.
+           Only the best and worst months are direct-labeled; hover any month for the full readout.</p>
+        <div class="legend" id="flowLegend"></div>
+        <div id="flowChart"></div>
+    </section>
+
+    <div class="two-col">
+        <!-- Concept 3: stacked category trend -->
+        <section class="concept" id="c-stack">
+            <div class="eyebrow">Concept 03 &middot; Category trend</div>
+            <h2>Stacked, with air between the segments</h2>
+            <p class="rationale">Top five categories plus &ldquo;Other&rdquo;, separated by 2px surface gaps
+               instead of borders. Colors are fixed to the category, so filtering never repaints survivors.</p>
+            <div class="legend" id="stackLegend"></div>
+            <div id="stackChart"></div>
+        </section>
+
+        <!-- Concept 4: ranked bars replace the donut -->
+        <section class="concept" id="c-rank">
+            <div class="eyebrow">Concept 04 &middot; Category share</div>
+            <h2>The donut becomes a ranked list</h2>
+            <p class="rationale">Close shares are unreadable on a wheel. A part-to-whole strip keeps the
+               &ldquo;of the whole&rdquo; feel; ranked bars below make every comparison exact.</p>
+            <div class="pt-strip" id="ptStrip"></div>
+            <div class="pt-caption">Share of 12-month spending</div>
+            <div class="ranked" id="rankedBars"></div>
+        </section>
+    </div>
+
+    <!-- Concept 5: heatmap -->
+    <section class="concept" id="c-heat">
+        <div class="eyebrow">Concept 05 &middot; Seasonality</div>
+        <h2>Category rhythm heatmap</h2>
+        <p class="rationale">Where the stacked chart shows totals, the heatmap shows timing: each row is shaded
+           against its own 12-month range (one hue, light&rarr;dark), so December&rsquo;s shopping spike and summer
+           travel pop even next to rent-sized numbers. Hover any cell for the exact amount.</p>
+        <div id="heatChart"></div>
+        <div class="scale-legend">
+            <span>low</span>
+            <span class="steps" id="scaleSteps"></span>
+            <span>high &middot; each row relative to its own range</span>
+        </div>
+    </section>
+
+    <!-- Concept 6: emphasis lines -->
+    <section class="concept" id="c-follow">
+        <div class="eyebrow">Concept 06 &middot; Follow one category</div>
+        <h2>Emphasis, not eight colors</h2>
+        <p class="rationale">When the question is &ldquo;what is Food doing?&rdquo;, the answer is one accent line
+           against gray context &mdash; not a rainbow. Pick a category below; the crosshair reads out every series
+           at the hovered month.</p>
+        <div class="chip-row" id="followChips"></div>
+        <div id="followChart"></div>
+    </section>
+
+    <footer>
+        <p class="note">Design rules applied: one axis everywhere &middot; bars &le;24px with 4px rounded data-ends
+           &middot; 2px surface gaps instead of borders &middot; hairline solid gridlines &middot; legends for every
+           multi-series chart, direct labels only where they earn it &middot; color follows the entity, never its rank
+           &middot; text wears text tokens, marks wear the series color.</p>
+        <p>Generated by tally &middot; prototype, not wired to real data</p>
+    </footer>
+</div>
+
+<div class="viz-tooltip" id="tooltip"></div>
+
+<script>
+'use strict';
+/* ============================================================
+   Mock data — a plausible household year (Jul 2025 – Jun 2026)
+   ============================================================ */
+const MONTHS = ['Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun'];
+const INCOME = [8900, 8900, 9450, 8900, 8900, 10800, 9100, 9100, 9100, 9650, 9100, 9100];
+const CATS = {
+    Housing:       [2400,2400,2400,2400,2400,2400,2400,2400,2400,2400,2400,2400],
+    Food:          [1180,1240,1105,1290,1370,1520,1140,1075,1210,1265,1330,1290],
+    Shopping:      [ 340, 510, 280, 465, 820,1650, 390, 310, 425, 540, 610, 480],
+    Travel:        [   0,1240,   0,   0, 380,   0,   0,1870,   0,   0, 640,2210],
+    Transport:     [ 420, 480, 395, 440, 410, 520, 380, 355, 460, 490, 445, 510],
+    Subscriptions: [ 285, 285, 292, 292, 292, 292, 305, 305, 305, 312, 312, 312],
+    Utilities:     [ 310, 335, 290, 265, 285, 340, 385, 370, 320, 280, 265, 295],
+    Other:         [ 180, 210, 165, 230, 195, 260, 175, 160, 205, 220, 240, 210]
+};
+/* Fixed categorical assignment — color follows the entity. Order validated
+   for CVD separation (worst adjacent ΔE 20.5) against the dark surface. */
+const CAT_COLOR = {
+    Housing: 'var(--cat-1)', Food: 'var(--cat-2)', Shopping: 'var(--cat-3)',
+    Travel: 'var(--cat-4)', Transport: 'var(--cat-5)',
+    Subscriptions: 'var(--cat-other)', Utilities: 'var(--cat-other)', Other: 'var(--cat-other)'
+};
+const CAT_NAMES = Object.keys(CATS);
+const SPEND = MONTHS.map((_, i) => CAT_NAMES.reduce((s, c) => s + CATS[c][i], 0));
+const NET = MONTHS.map((_, i) => INCOME[i] - SPEND[i]);
+const sum = a => a.reduce((s, v) => s + v, 0);
+const fmt$ = v => (v < 0 ? '-$' : '$') + Math.round(Math.abs(v)).toLocaleString();
+const fmtK = v => {
+    const sign = v < 0 ? '-' : '';
+    const a = Math.abs(v);
+    return a >= 1000 ? sign + '$' + (a / 1000).toFixed(a >= 10000 ? 0 : 1).replace(/\.0$/, '') + 'k' : sign + '$' + Math.round(a);
+};
+
+const NS = 'http://www.w3.org/2000/svg';
+function el(name, attrs, parent) {
+    const n = document.createElementNS(NS, name);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+}
+function txt(node, s) { node.textContent = s; return node; }
+
+/* Rounded-top vertical bar: 4px radius at the data end, square at baseline. */
+function barPathUp(x, yTop, w, h, r) {
+    r = Math.min(r, h / 2, w / 2);
+    return `M${x},${yTop + h} L${x},${yTop + r} Q${x},${yTop} ${x + r},${yTop} L${x + w - r},${yTop} Q${x + w},${yTop} ${x + w},${yTop + r} L${x + w},${yTop + h} Z`;
+}
+function barPathDown(x, yBase, w, h, r) {
+    r = Math.min(r, h / 2, w / 2);
+    const yb = yBase + h;
+    return `M${x},${yBase} L${x + w},${yBase} L${x + w},${yb - r} Q${x + w},${yb} ${x + w - r},${yb} L${x + r},${yb} Q${x},${yb} ${x},${yb - r} Z`;
+}
+function barPathRight(x, y, w, h, r) {
+    r = Math.min(r, w, h / 2);
+    return `M${x},${y} L${x + w - r},${y} Q${x + w},${y} ${x + w},${y + r} L${x + w},${y + h - r} Q${x + w},${y + h} ${x + w - r},${y + h} L${x},${y + h} Z`;
+}
+
+/* ---------- shared tooltip (textContent only — labels are untrusted) */
+const tip = document.getElementById('tooltip');
+function tipShow(evt, title, rows) {
+    tip.replaceChildren();
+    const t = document.createElement('div');
+    t.className = 'tt-title';
+    t.textContent = title;
+    tip.appendChild(t);
+    for (const r of rows) {
+        const row = document.createElement('div');
+        row.className = 'tt-row';
+        const key = document.createElement('span');
+        key.className = 'tt-key';
+        key.style.background = r.color || 'transparent';
+        const name = document.createElement('span');
+        name.className = 'tt-name';
+        name.textContent = r.name;
+        const val = document.createElement('span');
+        val.className = 'tt-val';
+        val.textContent = r.value;
+        row.append(key, name, val);
+        tip.appendChild(row);
+    }
+    tipMove(evt);
+    tip.classList.add('show');
+}
+function tipMove(evt) {
+    const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = evt.clientX + pad, y = evt.clientY + pad;
+    if (x + w > window.innerWidth - 8) x = evt.clientX - w - pad;
+    if (y + h > window.innerHeight - 8) y = evt.clientY - h - pad;
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+}
+function tipHide() { tip.classList.remove('show'); }
+
+function legendInto(id, keys, hint) {
+    const box = document.getElementById(id);
+    box.replaceChildren();
+    for (const k of keys) {
+        const item = document.createElement('span');
+        item.className = 'key';
+        const sw = document.createElement('span');
+        sw.className = k.line ? 'linekey' : 'swatch';
+        sw.style.background = k.color;
+        const lbl = document.createElement('span');
+        lbl.textContent = k.name;
+        item.append(sw, lbl);
+        box.appendChild(item);
+    }
+    if (hint) {
+        const h = document.createElement('span');
+        h.className = 'hint';
+        h.textContent = hint;
+        box.appendChild(h);
+    }
+}
+
+/* ============================================================
+   Concept 01 — KPI stat tiles
+   ============================================================ */
+(function kpis() {
+    const grid = document.getElementById('kpiGrid');
+    const netTotal = sum(NET), spendAvg = sum(SPEND) / 12;
+    const recurring = (sum(CATS.Housing) + sum(CATS.Subscriptions) + sum(CATS.Utilities)) / sum(SPEND);
+    const topCat = CAT_NAMES.map(c => [c, sum(CATS[c])]).sort((a, b) => b[1] - a[1])[0];
+
+    function spark(series, accent) {
+        const w = 150, h = 34, min = Math.min(...series), max = Math.max(...series);
+        const sx = i => 4 + i * (w - 8) / (series.length - 1);
+        const sy = v => max === min ? h / 2 : 4 + (h - 8) * (1 - (v - min) / (max - min));
+        const svg = el('svg', { viewBox: `0 0 ${w} ${h}`, width: w, height: h, class: 'spark' });
+        const d = series.map((v, i) => (i ? 'L' : 'M') + sx(i).toFixed(1) + ',' + sy(v).toFixed(1)).join(' ');
+        el('path', { d, fill: 'none', stroke: 'var(--text-muted)', 'stroke-width': 1.5,
+                     'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+        const li = series.length - 1;
+        el('circle', { cx: sx(li), cy: sy(series[li]), r: 4, fill: accent,
+                       stroke: 'var(--surface)', 'stroke-width': 2 }, svg);
+        return svg;
+    }
+
+    function tile(label, valueText, opts) {
+        const t = document.createElement('div');
+        t.className = 'stat-tile';
+        const l = document.createElement('div');
+        l.className = 'label'; l.textContent = label;
+        const v = document.createElement('div');
+        v.className = 'value' + (opts.pos ? ' pos' : ''); v.textContent = valueText;
+        t.append(l, v);
+        if (opts.delta) {
+            const d = document.createElement('div');
+            d.className = 'delta ' + opts.deltaClass;
+            const a = document.createElement('span');
+            a.className = 'arrow'; a.textContent = opts.delta.startsWith('-') ? '↓' : '↑';
+            const dv = document.createElement('span'); dv.textContent = opts.delta.replace(/^-/, '');
+            const vs = document.createElement('span'); vs.className = 'vs'; vs.textContent = 'vs prior 12 mo';
+            d.append(a, dv, vs);
+            t.appendChild(d);
+        }
+        if (opts.spark) t.appendChild(spark(opts.spark, opts.sparkAccent));
+        if (opts.meter != null) {
+            const m = document.createElement('div'); m.className = 'meter';
+            const f = document.createElement('div'); f.className = 'fill';
+            f.style.width = (opts.meter * 100).toFixed(0) + '%';
+            m.appendChild(f); t.appendChild(m);
+        }
+        if (opts.footnote) {
+            const fn = document.createElement('div');
+            fn.className = 'footnote'; fn.textContent = opts.footnote;
+            t.appendChild(fn);
+        }
+        return t;
+    }
+
+    grid.append(
+        tile('Net cash flow', '+' + fmt$(netTotal), {
+            pos: true, delta: '+18.4%', deltaClass: 'up-good',
+            spark: NET, sparkAccent: 'var(--accent-green)'
+        }),
+        tile('Avg monthly spend', fmt$(spendAvg), {
+            delta: '+3.1%', deltaClass: 'up-bad',
+            spark: SPEND, sparkAccent: 'var(--accent-blue)'
+        }),
+        tile('Recurring share', (recurring * 100).toFixed(0) + '%', {
+            meter: recurring, footnote: 'Housing, subscriptions & utilities'
+        }),
+        tile('Top category', topCat[0], {
+            delta: '-1.2%', deltaClass: 'down-good',
+            footnote: fmt$(topCat[1]) + ' · ' + Math.round(topCat[1] / sum(SPEND) * 100) + '% of spending'
+        })
+    );
+})();
+
+/* ============================================================
+   Concept 02 — diverging cash flow columns + net line
+   ============================================================ */
+(function flow() {
+    const W = 1080, H = 380, M = { t: 26, r: 20, b: 30, l: 56 };
+    const pw = W - M.l - M.r, ph = H - M.t - M.b;
+    const maxUp = Math.max(...INCOME), maxDn = Math.max(...SPEND);
+    const span = maxUp + maxDn;
+    const y0 = M.t + ph * (maxUp / span) | 0;      // baseline y
+    const yUp = v => y0 - (v / span) * ph;
+    const yDn = v => y0 + (v / span) * ph - y0;    // height below baseline
+    const slot = pw / 12, bw = 24;
+
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart-svg', role: 'img',
+                            'aria-label': 'Monthly income above and spending below a zero baseline, with net cash flow line' });
+    document.getElementById('flowChart').appendChild(svg);
+
+    // gridlines: clean $2.5k steps up and down
+    for (let v = 2500; v <= maxUp; v += 2500) {
+        const y = yUp(v);
+        el('line', { x1: M.l, x2: W - M.r, y1: y, y2: y, class: 'gridline' }, svg);
+        txt(el('text', { x: M.l - 8, y: y + 4, 'text-anchor': 'end', class: 'axis-tick' }, svg), fmtK(v));
+    }
+    for (let v = 2500; v <= maxDn; v += 2500) {
+        const y = y0 + (v / span) * ph;
+        el('line', { x1: M.l, x2: W - M.r, y1: y, y2: y, class: 'gridline' }, svg);
+        txt(el('text', { x: M.l - 8, y: y + 4, 'text-anchor': 'end', class: 'axis-tick' }, svg), fmtK(-v));
+    }
+    el('line', { x1: M.l, x2: W - M.r, y1: y0, y2: y0, class: 'baseline' }, svg);
+
+    const netPts = [];
+    MONTHS.forEach((m, i) => {
+        const cx = M.l + slot * i + slot / 2;
+        const g = el('g', { class: 'col-group' }, svg);
+        // income up
+        const ih = y0 - yUp(INCOME[i]);
+        el('path', { d: barPathUp(cx - bw - 1, yUp(INCOME[i]), bw, ih, 4),
+                     fill: 'var(--flow-income)', class: 'mark' }, g);
+        // spending down
+        const sh = yDn(SPEND[i]);
+        el('path', { d: barPathDown(cx + 1, y0, bw, sh, 4),
+                     fill: 'var(--flow-spending)', class: 'mark' }, g);
+        // month tick
+        txt(el('text', { x: cx, y: H - 8, 'text-anchor': 'middle', class: 'axis-tick' }, svg), m);
+        netPts.push([cx, NET[i] >= 0 ? yUp(NET[i]) : y0 + yDn(-NET[i])]);
+
+        // full-column hit target — one tooltip, every series
+        const hit = el('rect', { x: M.l + slot * i, y: M.t, width: slot, height: ph, class: 'hit' }, g);
+        hit.addEventListener('pointermove', e => {
+            g.classList.add('hot');
+            tipShow(e, m + ' ' + (i < 6 ? '2025' : '2026'), [
+                { name: 'Income',   value: fmt$(INCOME[i]), color: 'var(--flow-income)' },
+                { name: 'Spending', value: fmt$(SPEND[i]),  color: 'var(--flow-spending)' },
+                { name: 'Net',      value: (NET[i] >= 0 ? '+' : '') + fmt$(NET[i]), color: 'var(--flow-net)' }
+            ]);
+        });
+        hit.addEventListener('pointerleave', () => { g.classList.remove('hot'); tipHide(); });
+    });
+
+    // net line + ringed dots
+    el('path', { d: netPts.map((p, i) => (i ? 'L' : 'M') + p[0] + ',' + p[1]).join(' '),
+                 fill: 'none', stroke: 'var(--flow-net)', 'stroke-width': 2,
+                 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+    netPts.forEach(p => el('circle', { cx: p[0], cy: p[1], r: 4, fill: 'var(--flow-net)',
+                                       stroke: 'var(--surface)', 'stroke-width': 2 }, svg));
+
+    // direct labels: only the extremes earn one
+    const hiI = NET.indexOf(Math.max(...NET)), loI = NET.indexOf(Math.min(...NET));
+    [[hiI, -10], [loI, 18]].forEach(([i, dy]) => {
+        txt(el('text', { x: netPts[i][0], y: netPts[i][1] + dy, 'text-anchor': 'middle',
+                         class: 'direct-label' }, svg),
+            (NET[i] >= 0 ? '+' : '') + fmtK(NET[i]) + ' net');
+    });
+
+    legendInto('flowLegend', [
+        { name: 'Income', color: 'var(--flow-income)' },
+        { name: 'Spending', color: 'var(--flow-spending)' },
+        { name: 'Net', color: 'var(--flow-net)', line: true }
+    ], 'hover a month for the full readout');
+})();
+
+/* ============================================================
+   Concept 03 — stacked category trend with surface gaps
+   ============================================================ */
+const TOP5 = CAT_NAMES.map(c => [c, sum(CATS[c])]).sort((a, b) => b[1] - a[1]).slice(0, 5).map(e => e[0]);
+const STACK_SERIES = TOP5.concat(['Other']);
+function stackValue(series, i) {
+    if (series !== 'Other') return CATS[series][i];
+    return CAT_NAMES.filter(c => !TOP5.includes(c)).reduce((s, c) => s + CATS[c][i], 0);
+}
+const STACK_COLOR = s => s === 'Other' ? 'var(--cat-other)' : CAT_COLOR[s];
+
+(function stack() {
+    const W = 640, H = 340, M = { t: 16, r: 12, b: 30, l: 50 };
+    const pw = W - M.l - M.r, ph = H - M.t - M.b;
+    const maxTotal = Math.max(...SPEND);
+    const yv = v => (v / (maxTotal * 1.05)) * ph;
+    const slot = pw / 12, bw = 24, GAP = 2;
+
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart-svg', role: 'img',
+                            'aria-label': 'Monthly spending stacked by category' });
+    document.getElementById('stackChart').appendChild(svg);
+
+    for (let v = 2000; v <= maxTotal; v += 2000) {
+        const y = M.t + ph - yv(v);
+        el('line', { x1: M.l, x2: W - M.r, y1: y, y2: y, class: 'gridline' }, svg);
+        txt(el('text', { x: M.l - 8, y: y + 4, 'text-anchor': 'end', class: 'axis-tick' }, svg), fmtK(v));
+    }
+    el('line', { x1: M.l, x2: W - M.r, y1: M.t + ph, y2: M.t + ph, class: 'baseline' }, svg);
+
+    MONTHS.forEach((m, i) => {
+        const x = M.l + slot * i + (slot - bw) / 2;
+        const g = el('g', { class: 'col-group' }, svg);
+        let yCursor = M.t + ph;
+        STACK_SERIES.forEach((s, si) => {
+            const v = stackValue(s, i);
+            if (v <= 0) return;
+            let h = yv(v);
+            const isTop = si === STACK_SERIES.length - 1 ||
+                          STACK_SERIES.slice(si + 1).every(s2 => stackValue(s2, i) <= 0);
+            const gap = isTop ? 0 : GAP;
+            h = Math.max(h - gap, 1);
+            const yTop = yCursor - h;
+            if (isTop) el('path', { d: barPathUp(x, yTop, bw, h, 4), fill: STACK_COLOR(s), class: 'mark' }, g);
+            else el('rect', { x, y: yTop, width: bw, height: h, fill: STACK_COLOR(s), class: 'mark' }, g);
+            yCursor = yTop - gap;
+        });
+        txt(el('text', { x: x + bw / 2, y: H - 8, 'text-anchor': 'middle', class: 'axis-tick' }, svg), m);
+
+        const hit = el('rect', { x: M.l + slot * i, y: M.t, width: slot, height: ph, class: 'hit' }, g);
+        hit.addEventListener('pointermove', e => {
+            g.classList.add('hot');
+            tipShow(e, m + ' · ' + fmt$(SPEND[i]) + ' total',
+                STACK_SERIES.map(s => ({ name: s, value: fmt$(stackValue(s, i)), color: STACK_COLOR(s) })).reverse());
+        });
+        hit.addEventListener('pointerleave', () => { g.classList.remove('hot'); tipHide(); });
+    });
+
+    legendInto('stackLegend', STACK_SERIES.map(s => ({ name: s, color: STACK_COLOR(s) })));
+})();
+
+/* ============================================================
+   Concept 04 — part-to-whole strip + ranked bars
+   ============================================================ */
+(function ranked() {
+    const total = sum(SPEND);
+    const entries = CAT_NAMES.map(c => [c, sum(CATS[c])]).sort((a, b) => b[1] - a[1]);
+
+    const strip = document.getElementById('ptStrip');
+    entries.forEach(([c, v]) => {
+        const seg = document.createElement('div');
+        seg.className = 'seg';
+        seg.style.width = (v / total * 100) + '%';
+        seg.style.background = CAT_COLOR[c];
+        seg.title = '';
+        seg.addEventListener('pointermove', e =>
+            tipShow(e, c, [{ name: 'Share', value: (v / total * 100).toFixed(1) + '%', color: CAT_COLOR[c] }]));
+        seg.addEventListener('pointerleave', tipHide);
+        strip.appendChild(seg);
+    });
+
+    const list = document.getElementById('rankedBars');
+    const maxV = entries[0][1];
+    entries.forEach(([c, v]) => {
+        const row = document.createElement('div');
+        row.className = 'rank-row';
+        const name = document.createElement('span');
+        name.className = 'rname'; name.textContent = c;
+        const track = document.createElement('div');
+        track.className = 'track';
+        const bar = document.createElement('div');
+        bar.className = 'bar hbar';
+        bar.style.width = (v / maxV * 62) + '%';
+        bar.style.background = CAT_COLOR[c];
+        const val = document.createElement('span');
+        val.className = 'rval'; val.textContent = fmt$(v);
+        const pct = document.createElement('span');
+        pct.className = 'rpct'; pct.textContent = Math.round(v / total * 100) + '%';
+        val.appendChild(pct);
+        track.append(bar, val);
+        row.append(name, track);
+        row.addEventListener('pointermove', e => {
+            bar.classList.add('hot');
+            tipShow(e, c, [
+                { name: '12-mo total', value: fmt$(v), color: CAT_COLOR[c] },
+                { name: 'Monthly avg', value: fmt$(v / 12), color: 'transparent' }
+            ]);
+        });
+        row.addEventListener('pointerleave', () => { bar.classList.remove('hot'); tipHide(); });
+        list.appendChild(row);
+    });
+})();
+
+/* ============================================================
+   Concept 05 — category rhythm heatmap (sequential, one hue)
+   ============================================================ */
+(function heat() {
+    const OPACITY_STEPS = [10, 24, 40, 58, 76, 95];
+    const rows = CAT_NAMES.map(c => [c, sum(CATS[c])]).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+    const W = 1080, M = { t: 8, r: 12, b: 30, l: 108 };
+    const cellH = 30, cellGap = 2;
+    const H = M.t + rows.length * (cellH + cellGap) + M.b;
+    const pw = W - M.l - M.r;
+    const cw = pw / 12;
+
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart-svg', role: 'img',
+                            'aria-label': 'Heatmap of spending by category and month, each row shaded relative to its own range' });
+    document.getElementById('heatChart').appendChild(svg);
+
+    rows.forEach((c, ri) => {
+        const vals = CATS[c];
+        const lo = Math.min(...vals), hi = Math.max(...vals);
+        const y = M.t + ri * (cellH + cellGap);
+        txt(el('text', { x: M.l - 10, y: y + cellH / 2 + 4, 'text-anchor': 'end', class: 'axis-tick' }, svg), c);
+        vals.forEach((v, mi) => {
+            const t = hi === lo ? 0.5 : (v - lo) / (hi - lo);
+            const step = OPACITY_STEPS[Math.min(Math.floor(t * OPACITY_STEPS.length), OPACITY_STEPS.length - 1)];
+            const x = M.l + mi * cw;
+            const cell = el('rect', {
+                x: x + 1, y, width: cw - cellGap, height: cellH, rx: 3, class: 'cell',
+                fill: v === 0 ? 'var(--bg-table)'
+                              : `color-mix(in srgb, var(--accent-blue) ${step}%, transparent)`
+            }, svg);
+            cell.addEventListener('pointermove', e => {
+                cell.classList.add('hot');
+                tipShow(e, c + ' · ' + MONTHS[mi], [
+                    { name: 'Spent', value: fmt$(v), color: 'var(--accent-blue)' },
+                    { name: 'Row range', value: fmt$(lo) + ' – ' + fmt$(hi), color: 'transparent' }
+                ]);
+            });
+            cell.addEventListener('pointerleave', () => { cell.classList.remove('hot'); tipHide(); });
+        });
+    });
+    MONTHS.forEach((m, mi) => {
+        txt(el('text', { x: M.l + mi * cw + cw / 2, y: H - 8, 'text-anchor': 'middle', class: 'axis-tick' }, svg), m);
+    });
+
+    const stepsBox = document.getElementById('scaleSteps');
+    OPACITY_STEPS.forEach(s => {
+        const d = document.createElement('span');
+        d.className = 'step';
+        d.style.background = `color-mix(in srgb, var(--accent-blue) ${s}%, transparent)`;
+        stepsBox.appendChild(d);
+    });
+})();
+
+/* ============================================================
+   Concept 06 — emphasis lines with crosshair readout
+   ============================================================ */
+(function follow() {
+    const FOLLOWABLE = ['Food', 'Shopping', 'Travel', 'Transport', 'Utilities'];
+    let focus = 'Food';
+    const holder = document.getElementById('followChart');
+    const chips = document.getElementById('followChips');
+
+    FOLLOWABLE.forEach(c => {
+        const b = document.createElement('button');
+        b.className = 'chip' + (c === focus ? ' active' : '');
+        b.type = 'button';
+        const dot = document.createElement('span'); dot.className = 'dot';
+        const lbl = document.createElement('span'); lbl.textContent = c;
+        b.append(dot, lbl);
+        b.addEventListener('click', () => {
+            focus = c;
+            chips.querySelectorAll('.chip').forEach(x => x.classList.remove('active'));
+            b.classList.add('active');
+            render();
+        });
+        chips.appendChild(b);
+    });
+
+    function render() {
+        holder.replaceChildren();
+        const W = 1080, H = 340, M = { t: 20, r: 96, b: 30, l: 50 };
+        const pw = W - M.l - M.r, ph = H - M.t - M.b;
+        const series = FOLLOWABLE;
+        const maxV = Math.max(...series.flatMap(c => CATS[c]));
+        const xs = i => M.l + i * pw / 11;
+        const ys = v => M.t + ph * (1 - v / (maxV * 1.08));
+
+        const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart-svg', role: 'img',
+                                'aria-label': 'Monthly trend lines by category with ' + focus + ' emphasized' });
+        holder.appendChild(svg);
+
+        for (let v = 500; v <= maxV; v += 500) {
+            const y = ys(v);
+            el('line', { x1: M.l, x2: W - M.r, y1: y, y2: y, class: 'gridline' }, svg);
+            txt(el('text', { x: M.l - 8, y: y + 4, 'text-anchor': 'end', class: 'axis-tick' }, svg), fmtK(v));
+        }
+        el('line', { x1: M.l, x2: W - M.r, y1: M.t + ph, y2: M.t + ph, class: 'baseline' }, svg);
+        MONTHS.forEach((m, i) =>
+            txt(el('text', { x: xs(i), y: H - 8, 'text-anchor': 'middle', class: 'axis-tick' }, svg), m));
+
+        // context lines first (gray), focus line last (on top)
+        const ordered = series.filter(c => c !== focus).concat([focus]);
+        ordered.forEach(c => {
+            const isF = c === focus;
+            const d = CATS[c].map((v, i) => (i ? 'L' : 'M') + xs(i).toFixed(1) + ',' + ys(v).toFixed(1)).join(' ');
+            el('path', { d, fill: 'none',
+                         stroke: isF ? 'var(--accent-blue)' : 'var(--text-muted)',
+                         'stroke-opacity': isF ? 1 : 0.55,
+                         'stroke-width': isF ? 2.5 : 1.5,
+                         'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+            if (isF) {
+                const li = 11, exI = CATS[c].indexOf(Math.max(...CATS[c]));
+                el('circle', { cx: xs(li), cy: ys(CATS[c][li]), r: 4.5, fill: 'var(--accent-blue)',
+                               stroke: 'var(--surface)', 'stroke-width': 2 }, svg);
+                const endLbl = txt(el('text', { x: xs(li) + 12, y: ys(CATS[c][li]) + 4,
+                                                class: 'direct-label' }, svg),
+                                   c + ' ' + fmtK(CATS[c][li]));
+                endLbl.setAttribute('fill', 'var(--text-primary)');
+                if (exI !== li) {
+                    el('circle', { cx: xs(exI), cy: ys(CATS[c][exI]), r: 4, fill: 'var(--accent-blue)',
+                                   stroke: 'var(--surface)', 'stroke-width': 2 }, svg);
+                    txt(el('text', { x: xs(exI), y: ys(CATS[c][exI]) - 12, 'text-anchor': 'middle',
+                                     class: 'direct-label' }, svg), 'peak ' + fmtK(CATS[c][exI]));
+                }
+            }
+        });
+
+        // crosshair: snap to nearest month, read out every series
+        const cross = el('line', { y1: M.t, y2: M.t + ph, class: 'baseline', visibility: 'hidden' }, svg);
+        const catcher = el('rect', { x: M.l, y: M.t, width: pw, height: ph, class: 'hit' }, svg);
+        catcher.addEventListener('pointermove', e => {
+            const r = svg.getBoundingClientRect();
+            const px = (e.clientX - r.left) * (W / r.width);
+            const i = Math.max(0, Math.min(11, Math.round((px - M.l) / (pw / 11))));
+            cross.setAttribute('x1', xs(i)); cross.setAttribute('x2', xs(i));
+            cross.setAttribute('visibility', 'visible');
+            const rows = series.map(c => ({
+                name: c, value: fmt$(CATS[c][i]),
+                color: c === focus ? 'var(--accent-blue)' : 'var(--text-muted)'
+            })).sort((a, b) => (b.name === focus) - (a.name === focus));
+            tipShow(e, MONTHS[i] + (i < 6 ? ' 2025' : ' 2026'), rows);
+        });
+        catcher.addEventListener('pointerleave', () => { cross.setAttribute('visibility', 'hidden'); tipHide(); });
+    }
+    render();
+})();
+
+/* ---------- theme toggle (mirrors the report's) */
+const toggle = document.getElementById('themeToggle');
+toggle.addEventListener('click', () => {
+    const root = document.documentElement;
+    const light = root.getAttribute('data-theme') === 'light';
+    if (light) { root.removeAttribute('data-theme'); toggle.textContent = '☀'; }
+    else { root.setAttribute('data-theme', 'light'); toggle.textContent = '\u{1F319}'; }
+});
+</script>
+</body>
+</html>
