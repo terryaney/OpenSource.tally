@@ -1,0 +1,3 @@
+Add glob pattern examples in settings.yaml.example, clarify formats docs for file globs, and add CLI tests covering multi-file matching, no-match behavior, diag visibility, and sorted processing order.
+
+There was a stale PR (#45) that I was going to merge locally not realizing implementation was already done to support the feature, so I just created some tests and updated few small documentation files and should support closing that PR.
