@@ -2,9 +2,9 @@
 
 Local workflow documentation for the tally fork.
 
-> **STATUS: not yet in effect.** This describes the model the fork moves to after the *Restart* play at the bottom runs. Until then, `branches.md` (parallel-branches-off-main model) is the live document. Delete `branches.md` and rename this file once the restart's acceptance checks pass.
+> **STATUS: in effect.** The stack is built and acceptance checks pass. Remaining: restart steps 9 (cutover) and 10 (close old PRs, submit rung 1). Delete the *Restart checklist* section once those are done.
 
-Lives on the `playbook` branch — an orphan branch with no shared history with `main`, permanently checked out in the `tally-notes` worktree. It merges nowhere, so it is structurally incapable of reaching an upstream PR. See *Local machine setup*.
+Lives on the `playbook` branch — an orphan branch with no shared history with `main`, permanently checked out in the `tally-playbook` worktree. It merges nowhere, so it is structurally incapable of reaching an upstream PR. See *Local machine setup*.
 
 ## The model in one picture
 
@@ -68,7 +68,7 @@ It contains **no notes, no plans, no prototypes, no screenshots**. Those live on
 
 # Plan a feature with an AI agent
 
-Plans, prototypes and research notes live in **`tally-notes\.vscode\Plans\`** — on the `playbook` branch, tracked, in the notes worktree. Never in the main worktree.
+Plans, prototypes and research notes live in **`tally-playbook\.vscode\Plans\`** — on the `playbook` branch, tracked, in the notes worktree. Never in the main worktree.
 
 ```
 .vscode\Plans\
@@ -85,7 +85,7 @@ Why this and not "write the plan into the feature branch and promote it later":
 - **No promote step, no cleanup.** The file is tracked from the moment it's created.
 - **No clobbering.** The rejected alternative (an ignored `Plans/` dir in the main worktree) would be silently overwritten the moment a tracked copy arrived via a merge — see *Failure mode: ignored files are silently clobbered*.
 - **Always visible.** It survives every `git checkout` in the main worktree, because it isn't in the main worktree.
-- **No build side effects.** `playbook` never reaches `feature/experimental`, so committing notes can never trigger a build. (The old `paths-ignore: .vscode/**` hack in `dev-build.yml` is no longer needed and should be removed from the fork-identity commit.)
+- **No build side effects.** `playbook` never reaches `feature/experimental`, so committing notes can never trigger a build. The old `paths-ignore: .vscode/**` hack in `dev-build.yml` is unnecessary in this model and was deliberately left out of the fork-identity commit.
 
 Use unique, descriptive filenames — the directory is shared across all features, not per-branch. Commit notes whenever; it never disturbs in-flight feature work.
 
@@ -331,7 +331,7 @@ Then restack. Capture **every** rung tip first — `--update-refs` rebases them 
 
 ```powershell
 git rev-parse --short feature/workflow-node24 feature/globbing-documentation `
-  feature/merchant-composite-keys feature/ui-tweaks feature/charts-reimagined > ..\tally-notes\pre-rebase-tips.txt
+  feature/merchant-composite-keys feature/ui-tweaks feature/charts-reimagined > ..\tally-playbook\pre-rebase-tips.txt
 
 git rebase --update-refs main feature/charts-reimagined
 
@@ -776,16 +776,36 @@ git push origin feature/workflow-node24 feature/globbing-documentation `
                 feature/merchant-composite-keys feature/experimental --force-with-lease
 ```
 
-Close VS Code, then:
+**9a — retire the old notes worktree.** `C:\BTR\OpenSource\tally-notes` is a worktree of the **old** repo, checked out on `feature/experimental-foundational`. Its content now lives on `playbook`, so it is dead weight — and leaving it registered means the old repo keeps a lock on that directory.
 
 ```powershell
-Rename-Item C:\BTR\OpenSource\tally         tally-archive
-Rename-Item C:\BTR\OpenSource\tally-stacked tally
-Rename-Item C:\BTR\OpenSource\tally-notes-new tally-notes
-Remove-Item C:\BTR\OpenSource\tally-notes -Recurse -Force    # the OLD worktree
+# confirm nothing uncommitted is left behind
+git -C C:\BTR\OpenSource\tally-notes status --short
+
+git -C C:\BTR\OpenSource\tally worktree remove C:\BTR\OpenSource\tally-notes
+git -C C:\BTR\OpenSource\tally worktree list          # tally-notes gone
 ```
 
-Reopen `Tally.code-workspace`. Then rebuild what a fresh clone loses — see *What a fresh clone loses*.
+`worktree remove` refuses if the tree is dirty — commit or discard first, or add `--force` once you have checked the status output. If the directory was already deleted by hand, use `git -C C:\BTR\OpenSource\tally worktree prune` instead.
+
+**9b — close VS Code, then swap the folder names.**
+
+```powershell
+Rename-Item C:\BTR\OpenSource\tally          tally-archive
+Rename-Item C:\BTR\OpenSource\tally-stacked  tally
+```
+
+**9c — repair the worktree link.** `C:\BTR\OpenSource\tally-playbook` stores an **absolute** path back to `...\tally-stacked\.git\worktrees\...`, and the repo stores an absolute path forward to the worktree. Renaming the repo breaks both. Fix both directions in one command:
+
+```powershell
+git -C C:\BTR\OpenSource\tally worktree repair C:\BTR\OpenSource\tally-playbook
+git -C C:\BTR\OpenSource\tally worktree list          # both paths correct
+git -C C:\BTR\OpenSource\tally-playbook status        # resolves without error
+```
+
+> **Do not rename `tally-playbook` itself.** `worktree repair` fixes a moved *repo*; a moved worktree with a simultaneously moved repo can leave it unresolvable. If you do want it renamed, do that in a separate step and re-run `worktree repair` from the new location afterwards.
+
+**9d — reopen.** Point `Tally.code-workspace` at `C:\BTR\OpenSource\tally` and `C:\BTR\OpenSource\tally-playbook`, reopen it, then rebuild what a fresh clone loses — see *What a fresh clone loses*.
 
 ---
 
@@ -823,11 +843,13 @@ The last row is always available and costs nothing to defer. Nothing in this mod
 | Path | Branch | Role |
 |---|---|---|
 | `C:\BTR\OpenSource\tally` | whatever rung you're developing on | all code work; runs the playbook |
-| `C:\BTR\OpenSource\tally-notes` | `playbook` (**permanently**) | this file, `.vscode/Plans/`, `wishList.md` — always visible, never checked out anywhere else |
+| `C:\BTR\OpenSource\tally-playbook` | `playbook` (**permanently**) | this file, `.vscode/Plans/`, `wishList.md` — always visible, never checked out anywhere else |
 
 Both are opened together via `C:\BTR\Extensibility\Tally.code-workspace` (a VS Code multi-root workspace). Worktrees share one `.git`, so refs, objects, `rerere` state, and `.git/info/exclude` are common to both — but HEAD and the index are per-worktree, so committing notes never disturbs a half-finished feature.
 
-> **⚠ `playbook` is pinned to the notes worktree.** Git refuses to check out one branch in two worktrees. `git checkout playbook` in the main worktree **will fail** — that's by design, not breakage. All commits to it happen in `tally-notes`.
+> **⚠ `playbook` is pinned to the `tally-playbook` worktree.** Git refuses to check out one branch in two worktrees. `git checkout playbook` in the main worktree **will fail** — that's by design, not breakage. All commits to it happen in `tally-playbook`.
+
+> **⚠ Renaming or moving either directory breaks the worktree link** — both store absolute paths. Repair with `git -C <repo> worktree repair <worktree-path>`, which fixes both directions.
 
 > **`playbook` is an orphan branch.** It shares no commits with `main` and merges into nothing. That is deliberate: notes cannot reach a PR diff, cannot trigger a build, and cannot bloat the stack. It also means `git log main..playbook` is meaningless and `git merge playbook` should never be run.
 
@@ -853,7 +875,7 @@ None of this is in git. After a re-clone, rebuild by hand:
 ```powershell
 # 1. .git/info/exclude — re-add:  .claude/   (plus any **/.claude/* runtime entries)
 # 2. the notes worktree
-git worktree add ../tally-notes playbook
+git worktree add ../tally-playbook playbook
 # 3. rerere (the stack model depends on it — every rebase replays old resolutions)
 git config rerere.enabled true
 # 4. remotes
@@ -862,4 +884,4 @@ git remote add upstream https://github.com/davidfowl/tally
 git config rebase.updateRefs true
 ```
 
-`C:\BTR\Extensibility\Tally.code-workspace` and `.claude/settings.local.json` (which grants agents access to `../tally-notes/` via `permissions.additionalDirectories`) are also untracked — recreate or restore them from backup.
+`C:\BTR\Extensibility\Tally.code-workspace` and `.claude/settings.local.json` (which grants agents access to `../tally-playbook/` via `permissions.additionalDirectories`) are also untracked — recreate or restore them from backup.
