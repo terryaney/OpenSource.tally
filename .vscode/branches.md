@@ -16,6 +16,8 @@ Row order = stack order, bottom to top. Each rung's base is the row above it.
 | 4 | `feature/charts-reimagined` | rung 3 | | |
 | 5 | `feature/merchant-composite-keys` | rung 4 | | Stack tip. Composite merchant keys; opaque `merchant_<b64>` row IDs. Changes merchant identity, so it is the rung most likely to draw objection — deliberately placed last, where rejection costs no restacking. |
 
+**Contrib branches in play:** none. *(`contrib/*` branches merge into `feature/experimental` only and are never rungs — they have no base in the stack, so they are tracked here rather than as table rows. A rebuild must replay every one listed.)*
+
 > **Renaming is free** as long as no PR is open from the branch. Once a PR is open, its head branch cannot be renamed without closing the PR — so rename *before* you submit, never after.
 
 ---
@@ -170,7 +172,7 @@ git push origin feature/experimental
 Rungs *below* `<rung>` did not move — do not push them.
 
 > **Worked example — editing rung 3 of 5.** `<rung>` = `feature/ui-tweaks`, `<tip>` = `feature/merchant-composite-keys`.
-> `git rebase --update-refs feature/ui-tweaks feature/merchant-composite-keys` replays rungs 4 and 5 onto the edited rung 3 and moves all three refs. Rungs 1–2 are untouched. Step 4 pushes only rungs 3, 4, 5.
+> Rung 3 moves when you **commit** to it in step 2. `git rebase --update-refs feature/ui-tweaks feature/merchant-composite-keys` then replays rungs 4 and 5 onto it and moves those two refs. Rungs 1–2 are untouched. Step 4 pushes rungs 3, 4 and 5.
 
 > **🤖 Work with AI Agent if...**
 > - Step 3's diff has lines you can't account for. Hand over *that diff*, **before** the force-push.
@@ -280,10 +282,18 @@ git checkout main
 git merge --ff-only upstream/main
 git push origin main
 
-git log --oneline <old-main>..main               # which rungs of yours landed?
+git log --oneline <old-main>..main               # what upstream landed
+git cherry -v main <rung>                        # repeat per rung — '-' = already upstream
 ```
 
-Any rung of yours in that list → steps 3 and 6 apply. Nothing of yours → skip both.
+**`git log` alone does not prove a rung landed.** Upstream squashes, renames and edits, so your rung's subject may not appear at all. `git cherry` compares patch IDs and is reliable in one direction:
+
+| `git cherry` output | Meaning |
+|---|---|
+| `-` | that commit is already upstream, applied **verbatim** — the rung merged |
+| `+` | either not merged, **or** merged with modifications |
+
+A `-` → steps 3 and 6 apply to that rung. All `+` and nothing recognisable in the log → skip both. A `+` on a rung you *believe* merged is exactly the modified-merge case; step 3 will show you what changed.
 
 **3. Only if rungs of yours merged — check whether upstream modified them.** Otherwise go to step 4.
 
@@ -312,6 +322,23 @@ Deleted deliberately upstream → leave it out. No such commit → it may genuin
 
 ```powershell
 git rebase --update-refs main <tip>
+```
+
+If a rung merged **verbatim**, this completes with no conflict. If upstream **modified** it, replaying that rung conflicts against upstream's version — and this is where the whole play can silently go wrong:
+
+> **⚠ During a rebase, `ours` and `theirs` are the opposite of what you expect.** Verified:
+>
+> | Side | During `git rebase` |
+> |---|---|
+> | `--ours` / stage 2 | **upstream's** version (the new base) |
+> | `--theirs` / stage 3 | **your** commit being replayed |
+>
+> Rule 1 says upstream wins, so the correct resolution is **`git checkout --ours -- <file>`**. Reaching for `--theirs` — the intuitive choice, since it is "their" merge you are adapting to — **reverts upstream's edit, exits 0, leaves a clean `git status`, and reports nothing.** That is exactly the silent failure step 5 exists to catch.
+
+```powershell
+git checkout --ours -- <conflicted file>       # keep upstream's version
+git add <conflicted file>
+git rebase --continue
 ```
 
 **5. Verify — every rung, individually.**
@@ -390,19 +417,28 @@ uv run pytest tests/ --tb=no -q
 git push origin feature/experimental
 ```
 
-This is the **one** exception to "nothing but the fork-identity commit and the stack tip is merged into experimental." Add an inventory row for it — a rebuild re-derives `feature/experimental` from scratch and will drop the merge unless you know to replay it.
+This is the **one** exception to "nothing but the fork-identity commit and the stack tip is merged into experimental." Record it on the *Contrib branches in play* line under the inventory — **not** as an inventory row; a `contrib/*` branch has no base in the stack, so it doesn't fit that table. A rebuild re-derives `feature/experimental` from scratch and will drop the merge unless you know to replay it.
 
 **When it gets new commits** — re-fetch and re-merge; only the new commits flow in:
 
 ```powershell
-git fetch upstream +pull/<N>/head:contrib/<N>-<slug>   # '+' allows update even if the author force-pushed
+# whichever form you used originally — '+' allows update even if the author force-pushed
+git fetch upstream +pull/<N>/head:contrib/<N>-<slug>
+git fetch upstream +<branch>:contrib/<slug>
+
 git checkout feature/experimental
 git merge <contrib-branch>                             # force-pushed rewrites still dedupe by content
 uv run pytest tests/ --tb=no -q
 git push origin feature/experimental
 ```
 
-**When it merges upstream** — run [Upstream main moved](#upstream-main-moved); the content dedupes on `git merge main`, then delete the `contrib/*` branch and its inventory row.
+**When it merges upstream** — run [Upstream main moved](#upstream-main-moved). The content arrives via `main`, reaches the rungs when they restack, and reaches the build branch through the rebuild; nothing about it needs special handling. Then:
+
+```powershell
+git branch -D <contrib-branch>
+```
+
+and clear it from the *Contrib branches in play* line under the inventory.
 
 Don't push `contrib/*` branches to origin — they're not your work; the fetch recreates them anytime.
 
@@ -479,7 +515,16 @@ git branch --format='%(refname:short)' |
 git rebase -i --update-refs <rung-below> <tip>
 ```
 
-VS Code opens the commit list oldest-first with a dropdown per line. It contains **every commit from `<rung-below>` up to `<tip>`**, with `update-ref refs/heads/<branch>` lines marking each rung boundary.
+VS Code opens the commit list oldest-first with a dropdown per line. It contains **every commit reachable from `<tip>` but not from `<rung-below>`** — `<rung-below>`'s own commits are not listed — with an `update-ref refs/heads/<branch>` line after the last commit of each rung:
+
+```
+pick a811b5d # rung1: a
+pick ec085c7 # rung1: b
+update-ref refs/heads/feature/rung1
+pick 2a0e67c # rung2: a
+update-ref refs/heads/feature/rung2
+pick 1e70337 # rung3: a
+```
 
 Set the target rung's commits to `s` (squash); leave everything else `pick`. A second editor then opens with all the squashed messages — edit down to the final one, save, close the tab.
 
@@ -505,11 +550,15 @@ uv run pytest tests/ --tb=no -q
 **Expect:** empty diff, fewer commits on `<rung>`, tests pass.
 **STOP if:** the diff is non-empty. Squashing must never change content.
 
-**Recovery.** Mid-rebase: `git rebase --abort`. After it completed, restore each rung from step 1 — `git reset --hard` would wreck whichever branch happens to be checked out:
+**Recovery.** Mid-rebase: `git rebase --abort`. After it completed, **detach HEAD first** — the rebase leaves you on `<tip>`, and git refuses to force-move a branch that a worktree has checked out:
 
 ```powershell
+git checkout --detach
 git branch -f <rung> <recorded-sha>               # repeat for every rung that moved
+git checkout <tip>
 ```
+
+Without the detach you get `fatal: cannot force update the branch '<tip>' used by worktree at ...`. Note it says *worktree*, not *current branch* — the same refusal applies to any branch checked out in `tally-playbook`. Do not substitute `git reset --hard`; it moves whichever branch is checked out, which is not the one you are trying to restore.
 
 **4. Push and absorb.**
 
@@ -526,6 +575,12 @@ Then [rebuild `feature/experimental`](#rebuild-featureexperimental) — the rung
 ## Rebuild feature/experimental
 
 `feature/experimental` is `main` + the `fork:` commit + a merge of the stack tip. When a rebase rewrites rung SHAs, the branch is holding commits that no longer exist — so you throw it away and re-derive it. Two commands, because the `fork:` commit sits directly on `main` and is tagged `fork-identity`.
+
+**Safety net first**, if this rebuild is at all risky — the first command below clobbers the ref, so there is no undo afterwards:
+
+```powershell
+git branch experimental-old feature/experimental      # delete once tests pass
+```
 
 ```powershell
 git checkout -B feature/experimental fork-identity
@@ -558,12 +613,13 @@ git log main..feature/experimental --no-merges --oneline
 #   → rung commits + exactly one `fork:` commit, nothing else
 
 git log main..feature/experimental --merges --oneline
-#   → the <tip> merge, plus one merge per contrib/* branch still in play
+#   → one merge per absorb since the last rebuild, plus one per contrib/* branch
 ```
 
-Anything extra in the first list is work committed to the wrong branch — move it to a rung before rebuilding, or you lose it. Anything unexpected in the second means something was merged into the build branch that shouldn't have been; identify it before re-deriving, because the rebuild will drop it. Note every `contrib/*` merge you find — the rebuild command above has to replay each one.
+Anything extra in the first list is work committed to the wrong branch — move it to a rung before rebuilding, or you lose it.
 
-Safety net for a risky rebuild: `git branch experimental-old feature/experimental` first, delete once tests pass.
+**The second list is normally several merges, not one.** Every *New feature* and *Editing `<tip>`* absorb adds another merge of the stack tip; they accumulate until the next rebuild collapses them to one. What you are looking for is a merge that is neither a stack-tip merge nor a `contrib/*` merge — that is something absorbed into the build branch that shouldn't have been. Note every `contrib/*` merge you find; the rebuild command above has to replay each one.
+
 
 > **🤖 Work with AI Agent if...**
 > - Either `git log main..feature/experimental` listing turns up something unexpected — a commit that is neither a rung commit nor the `fork:` commit, or a merge that is neither `<tip>` nor a `contrib/*`. Hand over that list *before* rebuilding; the rebuild discards whatever it is.
