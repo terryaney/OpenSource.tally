@@ -1,38 +1,10 @@
-# Branch Inventory & Playbook (stacked model)
+# Branch Inventory & Playbook
 
 Local workflow documentation for the tally fork.
 
-> **STATUS: in effect.** The stack is built and acceptance checks pass. Remaining: restart steps 9 (cutover) and 10 (close old PRs, submit rung 1). Delete the *Restart checklist* section once those are done.
+Lives on the `playbook` branch — an orphan branch with no shared history with `main`, permanently checked out in the `tally-playbook` worktree. It merges nowhere, and `git merge playbook` refuses by default, so nothing here reaches an upstream PR by accident. See *Local machine setup*.
 
-Lives on the `playbook` branch — an orphan branch with no shared history with `main`, permanently checked out in the `tally-playbook` worktree. It merges nowhere, so it is structurally incapable of reaching an upstream PR. See *Local machine setup*.
-
-## The model in one picture
-
-```
-upstream/main ── main
-                  │
-                  ├── feature/workflow-node24                    rung 1
-                  │     └── feature/globbing-documentation       rung 2
-                  │           └── feature/ui-tweaks              rung 3
-                  │                 └── feature/charts-reimagined rung 4
-                  │                       └── feature/merchant-composite-keys  rung 5  ← stack tip
-                  │
-                  └── feature/experimental = main
-                                           + fork-identity commit
-                                           + merge(stack tip)
-
-playbook  (orphan — notes, plans, prototypes; merges nowhere)
-```
-
-Three rules the whole document follows from:
-
-1. **Every feature branch is based on the rung below it**, never on `main` (except rung 1).
-2. **`feature/experimental` is `main` + one fork-identity commit + a merge of the stack tip.** Nothing else is ever merged into it.
-3. **One upstream PR is open at a time**, from the lowest rung not yet merged.
-
-There are no `integration(...)` commits in this model. A clash between two features is fixed *in the upper rung*, because the upper rung is authored on top of the lower one.
-
-## Inventory
+## Current Inventory
 
 Row order = stack order, bottom to top. Each rung's base is the row above it.
 
@@ -42,31 +14,67 @@ Row order = stack order, bottom to top. Each rung's base is the row above it.
 | 2 | `feature/globbing-documentation` | rung 1 | | Docs + tests only |
 | 3 | `feature/ui-tweaks` | rung 2 | | Authored against string-keyed merchants — independent of rung 5 |
 | 4 | `feature/charts-reimagined` | rung 3 | | |
-| 5 | `feature/merchant-composite-keys` | rung 4 | | Stack tip. Composite merchant keys; opaque `merchant_<b64>` row IDs. Was `issue/88-merchant-category-display` / PR #91. **Carries all the integration debt** — see below. |
-
-> **Why composite-keys is on top, not at the bottom.** It is the only rung likely to draw a real objection: it changes merchant identity, which `CLAUDE.md` flags as the rule engine's core value with a historical break (952c508). Putting it last means (a) rungs 1–4 are clean cherry-picks with no cross-rung conflicts, (b) all reconciliation between the new keys and the UI/chart code lives in one rung instead of being scattered, and (c) if David rejects it, **nothing restacks** — it simply stays a fork-only rung above the tip. The four easy PRs go out first; the risky one goes last, where rejection is free.
-
-`feature/experimental` and `playbook` are never inventory rows.
+| 5 | `feature/merchant-composite-keys` | rung 4 | | Stack tip. Composite merchant keys; opaque `merchant_<b64>` row IDs. Changes merchant identity, so it is the rung most likely to draw objection — deliberately placed last, where rejection costs no restacking. |
 
 > **Renaming is free** as long as no PR is open from the branch. Once a PR is open, its head branch cannot be renamed without closing the PR — so rename *before* you submit, never after.
 
-## The fork-identity commit
+---
 
-`feature/experimental`'s first commit above `main`. Message: `fork: identity and experimental build wiring`. It contains **only** what makes this fork distinguishable and self-building:
+## Repository Structure
 
-- `src/tally/_version.py` — `REPO_URL` → `terryaney/OpenSource.tally`
-- `src/tally/cli.py`, `docs/index.html` — fork description/branding
-- `.github/workflows/dev-build.yml` — trigger on `feature/experimental`, "Experimental Build" naming, timestamp version scheme
-- `.github/workflows/release.yml` — branch refs, workflow lookup by file path, draft-SHA match validation, "Tally Experimental" titles
-- `.github/workflows/build.yml` — `REPO_URL` injection, artifact naming
+```
+main (based on upstream/main)
+ │
+ ├── feature/workflow-node24                    rung 1
+ │     └── feature/globbing-documentation       rung 2
+ │           └── feature/ui-tweaks              rung 3
+ │                 └── feature/charts-reimagined rung 4
+ │                       └── feature/merchant-composite-keys  rung 5  ← stack tip
+ │
+ ├── feature/experimental = main
+ │                        + fork-identity commit
+ │                        + merge(stack tip)
+ │
+ └── playbook  (notes, plans, prototypes; merges nowhere)
+```
 
-It contains **no notes, no plans, no prototypes, no screenshots**. Those live on `playbook`.
+Three rules the whole document follows from:
 
-> **⚠ Do not rename `build-rc` → `build-release` or `rc-artifacts` → `release-artifacts`.** That rename is the *only* thing that ever conflicted with `feature/workflow-node24` — both touch the same three lines of `dev-build.yml`. Keep David's "RC" wording and the fork-identity commit merges cleanly with the stack forever. Verified: with the rename dropped, `build.yml`, `dev-build.yml` and `release.yml` all auto-merge.
+1. **Every feature branch is based on the rung below it**, never on `main`.
+2. **`feature/experimental` is `main` + one fork-identity commit + a merge of the stack tip.** The only other thing ever merged into it is a `contrib/*` branch — see *Include someone else's upstream PR or branch*.
+3. **PRs are submitted bottom-up**, each declaring the rung it sits on. Batch them as much as possible given frequency upstream reviews; do not serialize.
 
 ---
 
-# Plan a feature with an AI agent
+# Playbook
+
+Run everything yourself; each play is a handful of git commands. Each play flags its own **🤖 Work with AI Agent if...** moments inline, at the step where they bite.
+
+Two rules for those handoffs, everywhere they appear: hand over the **specific conflict or failure** — the conflict hunk, the failing test output, the unexplained diff — and **never the whole play**.
+
+**Notation used throughout.** Substitute from the inventory table; nothing below hardcodes today's branch names.
+
+| Placeholder | Means | Today |
+|---|---|---|
+| `<tip>` | top rung of the stack | `feature/merchant-composite-keys` |
+| `<rung>` | the rung you are acting on | any row |
+| `<rung-below>` | the row directly above it in the inventory (its base) | — |
+| `<rung-above>` | the row directly below it in the inventory | — |
+
+`<rung-below>` for rung 1 is `main`. `<rung-above>` for `<tip>` does not exist — that is what makes the tip cheap to work on.
+
+- [Plan a feature with an AI agent](#plan-a-feature-with-an-ai-agent)
+- [New feature](#new-feature)
+- [Work on an existing rung](#work-on-an-existing-rung)
+- [Submit PRs](#submit-prs)
+- [Upstream main moved](#upstream-main-moved) — also covers **my PR was accepted upstream**
+- [Include someone else's upstream PR or branch](#include-someone-elses-upstream-pr-or-branch)
+- [My PR was rejected](#my-pr-was-rejected)
+- [Squash a rung](#squash-a-rung)
+- [Rebuild feature/experimental](#rebuild-featureexperimental)
+- [When to abandon upstream](#when-to-abandon-upstream)
+
+## Plan a feature with an AI agent
 
 Plans, prototypes and research notes live in **`tally-playbook\.vscode\Plans\`** — on the `playbook` branch, tracked, in the notes worktree. Never in the main worktree.
 
@@ -77,126 +85,103 @@ Plans, prototypes and research notes live in **`tally-playbook\.vscode\Plans\`**
   Prototypes\<thing>.html    # throwaway protos
 ```
 
-Point the agent at that path and let it read and write there directly while you develop on any rung in the main worktree. `permissions.additionalDirectories` in `.claude/settings.local.json` already grants access, so there is no per-file approval prompt.
+Point the agent at that path and let it read and write there directly while you develop on any rung in the main worktree.
 
 Why this and not "write the plan into the feature branch and promote it later":
 
-- **It cannot leak.** `playbook` is an orphan branch that merges into nothing. A plan there is structurally incapable of appearing in a rung or an upstream PR diff — that's a property of the branch graph, not a rule anyone has to remember.
-- **No promote step, no cleanup.** The file is tracked from the moment it's created.
-- **No clobbering.** The rejected alternative (an ignored `Plans/` dir in the main worktree) would be silently overwritten the moment a tracked copy arrived via a merge — see *Failure mode: ignored files are silently clobbered*.
+- **It cannot leak by accident.** `playbook` shares no history with `main`, so `git merge playbook` refuses outright — getting a plan into a rung takes a deliberate `--allow-unrelated-histories` or `cherry-pick`. The guard is git's, not a rule you have to remember.
 - **Always visible.** It survives every `git checkout` in the main worktree, because it isn't in the main worktree.
-- **No build side effects.** `playbook` never reaches `feature/experimental`, so committing notes can never trigger a build. The old `paths-ignore: .vscode/**` hack in `dev-build.yml` is unnecessary in this model and was deliberately left out of the fork-identity commit.
+- Use unique, descriptive filenames — the directory is shared across all features, not per-branch. Commit notes whenever; it never disturbs in-flight feature work.
 
-Use unique, descriptive filenames — the directory is shared across all features, not per-branch. Commit notes whenever; it never disturbs in-flight feature work.
+## New feature
 
----
-
-# Playbook
-
-Run everything yourself; each play is a handful of git commands. Each play flags its own **🤖 Work with AI Agent if...** moments inline, at the step where they bite.
-
-Two rules for those handoffs, everywhere they appear: hand over the **specific conflict or failure** — the conflict hunk, the failing test output, the unexplained diff — and **never the whole play**.
-
-- [Work on a rung](#work-on-a-rung)
-  - [Test a local build without committing](#test-a-local-build-without-committing)
-- [New feature](#new-feature)
-- [Submit the next PR](#submit-the-next-pr)
-- [My PR was accepted upstream](#my-pr-was-accepted-upstream)
-- [My PR was rejected](#my-pr-was-rejected)
-- [Upstream main moved](#upstream-main-moved)
-- [Include someone else's upstream PR or branch](#include-someone-elses-upstream-pr-or-branch)
-- [Rebuild feature/experimental](#rebuild-featureexperimental)
-- [Restart checklist](#restart-checklist--delete-this-section-when-done) — one-time, disposable
-- [When to abandon upstream](#when-to-abandon-upstream)
-
-## The ground-truth check
-
-Every play that rebases records tips **before** and diffs **after**. `--update-refs` moves all rung refs in one pass, so there is no "before" to compare against unless you captured it first. Capture with:
+A new feature always goes on **top of the stack**, never on `main`:
 
 ```powershell
-git rev-parse --short feature/workflow-node24 feature/globbing-documentation `
-  feature/merchant-composite-keys feature/ui-tweaks feature/charts-reimagined
-```
-
-**How many rungs you must diff depends on where the new base came from:**
-
-| The rebase's new base is… | Check | Why |
-|---|---|---|
-| **your own edit** to a lower rung (*Work on a rung*, *My PR was rejected*) | **tip only** | You know what changed — you wrote it. The tip diff should show exactly your edit and nothing else. |
-| **upstream** (*Upstream main moved*, *My PR was accepted*) | **every rung, individually** | A replayed commit can silently resurrect code David deliberately deleted. Only a per-rung tree diff catches it, and a bad resolution at a low rung propagates invisibly through every rung above. |
-
-Nothing in the upstream-base case is optional. See the PR #92 warning under *Upstream main moved*.
-
-> **⚠ Never skip a ground-truth check to save AI tokens.** The check itself is free — it is `git diff --stat`, run by you, costing nothing. Only *explaining* a non-empty result costs anything, and that cost is the entire point: a diff you can't account for is the one failure mode in this model that ships silently and stays shipped.
-
-> **🤖 Work with AI Agent if...**
-> - A diff is non-empty and you can't account for **every line**. Hand over *that diff* and the rung it belongs to — not the branch, not the play.
-> - You can account for the lines but can't tell whether a deletion was *upstream-intentional* or *accidentally lost*. `git log -S <string>` and `git show` on upstream history answer it; the judgment is worth an agent.
-
-## Work on a rung
-
-Editing the **top** rung is trivial — nothing sits above it:
-
-```powershell
-git checkout feature/charts-reimagined
-# ...commit changes...
+git checkout -b feature/<name> <tip>
+# ...develop, test...
 git checkout feature/experimental
-git merge feature/charts-reimagined         # fast-forward-ish; no --no-ff needed
+git merge feature/<name>
 uv run pytest tests/ --tb=no -q
 git push origin feature/experimental
 ```
 
-Editing a **middle** rung means everything above it must be replayed:
+Add an inventory row at the bottom of the table. `feature/<name>` is now `<tip>`.
+
+> **Deliberate consequence:** everything you write from now on sits above every unmerged PR. If upstream never merges anything, that is fine — the stack still builds and `feature/experimental` still works. It only costs you if you later want to submit the new feature *before* something beneath it, which requires the *rejected* play's restack.
+
+> **🤖 Work with AI Agent if...** the feature really belongs lower in the stack (it's independent of the rungs beneath it and you'd rather submit it sooner). Moving it down is a `git rebase --onto` plus a restack of everything above — hand over the intent, not the branch.
+
+## Work on an existing rung
+
+### Editing `<tip>`
+
+Nothing sits above it, so there is nothing to replay.
 
 ```powershell
-# record every tip first — the ground-truth check needs them
-git rev-parse --short feature/workflow-node24 feature/globbing-documentation `
-  feature/merchant-composite-keys feature/ui-tweaks feature/charts-reimagined
-
-git checkout feature/ui-tweaks
+git checkout <tip>
 # ...commit changes...
-git rebase --update-refs feature/ui-tweaks feature/charts-reimagined
+git checkout feature/experimental
+git merge <tip>
+uv run pytest tests/ --tb=no -q
+git push origin feature/experimental
+git push --force-with-lease origin <tip>        # only if it has an open PR
 ```
 
-`--update-refs` replays every rung above and **moves each branch ref** in one pass. Then verify and absorb:
+### Editing any lower `<rung>`
+
+Every rung above must be replayed onto your edit. One `--update-refs` run does all of them.
+
+**1. Record the tip.** `--update-refs` overwrites every rung ref in one pass, so there is no "before" afterwards unless you captured it now.
 
 ```powershell
-git diff <old-charts-tip> feature/charts-reimagined --stat    # GROUND-TRUTH CHECK — tip only; base is your own edit
-git push --force-with-lease origin feature/charts-reimagined  # and any other moved rung with a PR
+git rev-parse --short <tip>                     # write this down
+```
+
+**2. Edit and replay.**
+
+```powershell
+git checkout <rung>
+# ...commit changes...
+git rebase --update-refs <rung> <tip>
+```
+
+`<rung>` is where you committed; `<tip>` tells the rebase how far up to replay. Every rung between them moves too.
+
+**3. Verify — `<tip>` only.** The base of this replay is your own edit, so you already know what should have changed.
+
+```powershell
+git diff <recorded-tip> <tip> --stat
+```
+
+**Expect:** exactly the change you just made, nothing else.
+**STOP if:** anything else appears. The rebase dropped or resurrected something.
+
+**4. Absorb and push.**
+
+```powershell
+git push --force-with-lease origin <every rung from `<rung>` up to `<tip>` that has an open PR>
 git checkout feature/experimental
-git merge feature/charts-reimagined
+git merge <tip>
 uv run pytest tests/ --tb=no -q
 git push origin feature/experimental
 ```
 
-The ground-truth diff should show **exactly** the change you just made, nothing more. Anything extra means the rebase resurrected or dropped something.
+Rungs *below* `<rung>` did not move — do not push them.
+
+> **Worked example — editing rung 3 of 5.** `<rung>` = `feature/ui-tweaks`, `<tip>` = `feature/merchant-composite-keys`.
+> `git rebase --update-refs feature/ui-tweaks feature/merchant-composite-keys` replays rungs 4 and 5 onto the edited rung 3 and moves all three refs. Rungs 1–2 are untouched. Step 4 pushes only rungs 3, 4, 5.
 
 > **🤖 Work with AI Agent if...**
-> - The ground-truth diff contains lines you can't account for. Hand it over *before* the force-push.
-> - `--update-refs` stops with conflict markers. Hand over *that conflict* plus which two rungs are involved — the resolution belongs in the upper rung.
-> - The merge into `feature/experimental` is clean but `pytest` fails. In this model that is **not** an integration commit — it means the rung itself is wrong. Fix it in the rung and re-propagate.
+> - Step 3's diff has lines you can't account for. Hand over *that diff*, **before** the force-push.
+> - `--update-refs` stops with conflict markers. Hand over the conflict plus which two rungs are involved — the resolution belongs in the upper rung.
+> - The merge into `feature/experimental` is clean but `pytest` fails. That means the rung itself is wrong. Fix it in the rung and re-run from step 2.
 
 ### Test a local build without committing
 
 For trying an implementation against real data before any commit/push/release. Two tiers:
 
-**Tier 1 — Generate a report from the working tree (eyeball a UI change)**
-
-```powershell
-cd C:\BTR\OpenSource\tally
-# Throwaway copy — never touches your normal spending_summary.html:
-uv run tally up -c C:\BTR\TallySpending\tally\config -o C:\BTR\TallySpending\tally\output\spending_check.html
-```
-
-Then open `C:\BTR\TallySpending\tally\output\spending_check.html` in a browser (double-click — `file://` is fine).
-
-- `-c / --config` points at the **config dir** — `...\tally\config`, the folder that holds `settings.yaml`, *not* the `TallySpending` root. The bare positional path is deprecated **and** points one level too high — that path has no `settings.yaml` and errors out.
-- `-o / --output` overrides the output path. **Omit it and tally writes to the configured default** (`output_dir: output` → `...\tally\output\spending_summary.html`), overwriting your normal report — so pass `-o ...spending_check.html` when you just want to look.
-- The report is rendered from the **working tree** (`src/tally/spending_report.{html,css,js}`), so uncommitted edits appear immediately — re-run to regenerate.
-- Iterating on CSS/JS specifically? Add `--no-embedded-html` to emit editable `spending_report.css` / `.js` next to the HTML; edit those and refresh the browser (no regen needed). See `CLAUDE.md → HTML Report Development`.
-- `file://` is blocked inside the Playwright MCP sandbox, so agent-driven verification needs a loopback server (`python -m http.server <port> --bind 127.0.0.1` — the `--bind` keeps your personal data off the LAN). A normal browser has no such limit.
-
-**Tier 2 — test as the installed tool.**
+**Tier 1 — test as the installed tool.**
 
 ```powershell
 cd C:\BTR\OpenSource\tally
@@ -214,147 +199,178 @@ Copy-Item dist\tally.exe "$env:LOCALAPPDATA\tally\tally.exe" -Force
 Copy-Item "$env:LOCALAPPDATA\tally\tally.official.exe" "$env:LOCALAPPDATA\tally\tally.exe" -Force
 ```
 
-Notes:
-- pyinstaller builds the **working tree** — uncommitted changes included; that's the point.
-- The local build skips the workflow's version injection: `tally --version` reports placeholder `0.1.0` — the tell that you're running a local build.
-- Don't trust `tally update` from a local build: `REPO_URL` in `_version.py` points at **davidfowl/tally** on every rung (only `feature/experimental` carries the fork-identity commit that redirects it), so it may fetch David's build instead of yours. The backup/restore copy avoids the whole question.
-- Either copy fails if tally.exe is currently running — close it first.
-
-## New feature
-
-A new feature always goes on **top of the stack**, never on `main`:
+**Tier 2 — Generate a report from the working tree (eyeball a UI change)**
 
 ```powershell
-git checkout -b feature/<name> feature/charts-reimagined     # current tip
-# ...develop, test...
-git checkout feature/experimental
-git merge feature/<name>
-uv run pytest tests/ --tb=no -q
-git push origin feature/experimental
+cd C:\BTR\OpenSource\tally
+# Throwaway copy — never touches your normal spending_summary.html:
+uv run tally up -c C:\BTR\TallySpending\tally\config -o C:\BTR\TallySpending\tally\output\spending_check.html
 ```
 
-Add an inventory row at the bottom of the table. The new branch is now the stack tip.
+- Iterating on CSS/JS specifically? Add `--no-embedded-html` to emit editable `spending_report.css` / `.js` next to the HTML; edit those and refresh the browser (no regen needed). See `CLAUDE.md → HTML Report Development`.
+- `file://` is blocked inside the Playwright MCP sandbox, so agent-driven verification needs a loopback server (`python -m http.server <port> --bind 127.0.0.1` — the `--bind` keeps your personal data off the LAN). A normal browser has no such limit.
 
-> **Deliberate consequence:** everything you write from now on sits above every unmerged PR. If David never merges anything, that is fine — the stack still builds and `feature/experimental` still works. It only costs you if you later want to submit the new feature *before* something beneath it, which requires the *rejected* play's restack.
+## Submit PRs
 
-> **🤖 Work with AI Agent if...** the feature really belongs lower in the stack (it's independent of the rungs beneath it and you'd rather submit it sooner). Moving it down is a `git rebase --onto` plus a restack of everything above — hand over the intent, not the branch.
-
-## Submit the next PR
-
-One at a time, from the lowest rung without a merged PR.
+Every PR targets `main`, so each diff is cumulative: rung 3's PR shows rungs 1–3. As long as rungs stay squashed to a commit or two each, that is a sentence of explanation, not a wall — **submit in batches, do not serialize**. Upstream visits are quarterly; one merge per visit is a decade.
 
 ```powershell
 git push origin <rung>
-gh pr create --repo davidfowl/tally --base main --head terryaney:<rung>
+gh pr create --repo davidfowl/tally --base main --head terryaney:<rung> `
+  --title "<title>" --body-file .vscode\Plans\PRs\<rung>.md
 ```
 
-Because GitHub cross-fork PRs can only target a branch **in the upstream repo**, the PR diff shows every commit from `main` up through that rung — including rungs beneath it that haven't merged yet. That is why only one is open at a time: the next rung's diff is unreadable until the current one lands.
+**Per-layer diff links.** A compare URL between two of your own branches renders only the upper one's commits — the isolated view a native stack would give:
 
-Update the inventory row with the PR link.
-
-## My PR was accepted upstream
-
-The merged rung dissolves into `main` and disappears from every diff above it.
-
-```powershell
-git fetch upstream
-git checkout main
-git merge --ff-only upstream/main
-git push origin main
-
-# record all tips before restacking
-git rev-parse --short feature/globbing-documentation feature/merchant-composite-keys `
-  feature/ui-tweaks feature/charts-reimagined
-
-git rebase --update-refs main feature/charts-reimagined
-
-# GROUND-TRUTH CHECK — base is upstream, so EVERY rung, individually
-git diff <old-globbing-tip> feature/globbing-documentation --stat
-git diff <old-keys-tip>     feature/merchant-composite-keys --stat
-git diff <old-ui-tip>       feature/ui-tweaks --stat
-git diff <old-charts-tip>   feature/charts-reimagined --stat
-
-git push --force-with-lease origin <each remaining rung>
-
-git branch -d <merged rung>
-git push origin --delete <merged rung>
-
-git checkout feature/experimental
-git merge main                              # dedupes automatically, even squash-merges
-git merge feature/charts-reimagined
-uv run pytest tests/ --tb=no -q
-git push origin feature/experimental
+```
+https://github.com/terryaney/OpenSource.tally/compare/<rung below>...<this rung>
 ```
 
-Remove the inventory row. Submit the next rung.
+Bottom rung uses `main...<rung>`. Branch names containing `/` work as-is; no escaping needed.
 
-If David merged a *modified* version, expect small conflicts only on the hunks he changed — resolve those, never replay anything.
+**PR description template** — first two lines carry the dependency, so it is legible without opening anything:
 
-> **🤖 Work with AI Agent if...**
-> - `git merge main` conflicts because David merged a **modified** version of your PR. Resolve only the hunks he changed; **never replay** your original version over his. If you catch yourself re-adding your code because the merge "lost" it, stop and hand it over.
-> - You can't tell whether a difference is *upstream-intentional* or *accidentally lost*. This is the highest-value handoff in the playbook — the judgment call needs `git log -S <string>` and `git show` on the upstream history before anything is re-added. See the PR #92 lesson under *Upstream main moved*.
+```markdown
+**Stacked on `feature/globbing-documentation`** — please merge that one first.
+Standalone diff for this layer only: [feature/globbing-documentation...feature/ui-tweaks](https://github.com/terryaney/OpenSource.tally/compare/feature/globbing-documentation...feature/ui-tweaks)
 
-## My PR was rejected
+## What this does
 
-Drop the rung; everything above it restacks onto the rung below.
+<one paragraph>
 
-```powershell
-git rev-parse --short <every rung above the rejected one>
+## Why it's separate
 
-git rebase --onto <rung below> <rejected rung> <stack tip> --update-refs
-git diff <old-tip> <stack tip> --stat        # GROUND-TRUTH CHECK — expect only the rejected rung's code to be gone
+<why this is its own layer rather than folded into the one below>
 
-git branch -D <rejected rung>
-git push origin --delete <rejected rung>
-git push --force-with-lease origin <each surviving rung>
+## Coming next (not in this PR)
+
+- [`feature/charts-reimagined`](https://github.com/terryaney/OpenSource.tally/compare/feature/ui-tweaks...feature/charts-reimagined) — reimagined chart layout, KPI tiles, chart docs
+- [`feature/merchant-composite-keys`](https://github.com/terryaney/OpenSource.tally/compare/feature/charts-reimagined...feature/merchant-composite-keys) — composite merchant identity so one merchant can carry multiple categorizations
 ```
 
-Then [rebuild `feature/experimental`](#rebuild-featureexperimental) — the merge SHAs it holds no longer exist.
+**Conventions**
 
-Keep the rejected code if you still want it locally: don't delete the branch, move it *above* the tip instead (`git rebase --onto <tip> <rung below> <rejected rung>`) and mark the inventory row "local only, not for upstream."
-
-> **🤖 Work with AI Agent if...**
-> - Upper rungs *depended* on the rejected rung's code. The restack will conflict everywhere, and the right answer may be to fold the rejected rung's essential parts into the upper rung. Hand over the conflict plus what David objected to.
->
-> **Not applicable to rung 5 (`feature/merchant-composite-keys`).** Nothing sits above it, so rejection costs one decision — keep it as a fork-only rung or drop it — and zero restacking. That is why it is on top.
+- Branch names are `feature/<kebab-slug>` and never change once a PR is open — renaming a head branch closes the PR. Rename *before* submitting.
+- PR title = simple descriptive title. No `[1/5]` or `Part 2:` prefixes; the "Stacked on" line carries the ordering and survives reordering.
+- Drop the "Stacked on" line for the bottom rung; drop "Coming next" when nothing above is ready to preview. When a rung merges upstream, the rung above it becomes `main...<rung>`.
+- Update the inventory row with the PR link as soon as it is open.
 
 ## Upstream main moved
 
+Covers both cases, because they are the same event and can happen together: `git fetch upstream` returns commits, and one of them may or may not be a rung of yours. Steps 3 and 6 are gated — step 2 tells you whether they apply, so don't decide up front.
+
+**1. Record every rung tip and old `main`.** `--update-refs` overwrites every rung ref in one pass, and `main` is about to fast-forward; without these there is nothing to compare against.
+
+```powershell
+git rev-parse --short main                       # <old-main> — write this down
+
+git branch --format='%(refname:short)' |
+  Where-Object { $_ -notin 'main','playbook','feature/experimental' -and $_ -notlike 'contrib/*' } |
+  ForEach-Object { "{0,-40} {1}" -f $_, (git rev-parse --short $_) } |
+  Tee-Object ..\tally-playbook\pre-rebase-tips.txt
+```
+
+Every local branch except `main`, `playbook`, `feature/experimental` and `contrib/*` is a rung, so this needs no editing when the stack changes. `contrib/*` branches are excluded deliberately — they merge into the build branch, never into the stack, so they are not rebased and their SHAs are not verified here. Output is alphabetical, not stack order — it is a lookup table for step 5, not a sequence.
+
+**2. Take upstream's new main, then check what landed.**
+
 ```powershell
 git fetch upstream
 git checkout main
 git merge --ff-only upstream/main
 git push origin main
+
+git log --oneline <old-main>..main               # which rungs of yours landed?
 ```
 
-Then restack. Capture **every** rung tip first — `--update-refs` rebases them all in one pass, so there is no per-rung "before" to compare against afterward unless you recorded it:
+Any rung of yours in that list → steps 3 and 6 apply. Nothing of yours → skip both.
+
+**3. Only if rungs of yours merged — check whether upstream modified them.** Otherwise go to step 4.
+
+Do this before restacking; a rebase over a modified merge is where upstream's edits get silently reverted. **Run it once per merged rung** — batched submissions mean two or more can land in the same window.
 
 ```powershell
-git rev-parse --short feature/workflow-node24 feature/globbing-documentation `
-  feature/merchant-composite-keys feature/ui-tweaks feature/charts-reimagined > ..\tally-playbook\pre-rebase-tips.txt
-
-git rebase --update-refs main feature/charts-reimagined
-
-# GROUND-TRUTH CHECK, once per rung, against the recorded tips
-git diff <old-node24-tip>  feature/workflow-node24 --stat
-git diff <old-globbing-tip> feature/globbing-documentation --stat
-git diff <old-keys-tip>     feature/merchant-composite-keys --stat
-git diff <old-ui-tip>       feature/ui-tweaks --stat
-git diff <old-charts-tip>   feature/charts-reimagined --stat
-
-git push --force-with-lease origin <the rung with the open PR>
+git diff --name-only <old-main> <merged-rung>    # files that PR touched — keep this list
+git diff <merged-rung> main -- <those files>     # how upstream's version differs from yours
 ```
 
-Then [rebuild `feature/experimental`](#rebuild-featureexperimental).
+**Empty** → merged verbatim. Go to step 4, nothing special.
+**Non-empty** → every line is an edit upstream made. Read it now; you will hit these as conflicts in step 4. Three rules, in priority order:
 
-> **⚠ The ground-truth check is not optional.** A rebase can silently resurrect code that upstream deliberately deleted (proven here: replaying PR #91's first commit re-added an exclusion skip that merged PR #92 had intentionally removed; only the tree-diff caught it). Each diff must be empty, or every line of it must be explainable as intentional. If you can't explain it, hand it to Claude before pushing.
->
-> **The stack makes this worse, not better** — one `--update-refs` run can resurrect deleted code at *any* rung, and a bad resolution at rung 2 propagates silently through rungs 3–5. That is the price of the model, and the per-rung diff is the only thing that catches it.
+1. **Upstream's version wins on any line they changed.** Even if yours looks better — reopen it as a follow-up rung instead of quietly restoring it.
+2. **Your version wins only where a *later rung* deliberately changed the same line** — the upper rung's own work, not a replay of the merged rung's.
+3. **Never re-add something the merge appears to have "lost."** A rebase replays your old commits, so code deleted on purpose comes back looking like a conflict resolution. Confirm intent first:
+
+```powershell
+git log -S "<the exact line>" --oneline upstream/main
+git show <that commit>
+```
+
+Deleted deliberately upstream → leave it out. No such commit → it may genuinely be lost; hand it over.
+
+**4. Restack.**
+
+```powershell
+git rebase --update-refs main <tip>
+```
+
+**5. Verify — every rung, individually.**
+
+A plain `git diff <recorded-sha> <rung>` is **not** the check. Each rung's tree now contains upstream's new commits, so that diff is non-empty by design and tells you nothing. What must hold is narrower: *each rung still contributes exactly its own changes, on top of a new base.*
+
+Compare tree hashes. Paste once, then run bottom-up — each rung is checked against the **new** rung below it:
+
+```powershell
+function TreeCheck($oldBase, $newBase, $oldTip, $newTip) {
+  $exp = (git merge-tree --write-tree --merge-base=$oldBase $newBase $oldTip) -split "`n" | Select-Object -First 1
+  $act = git rev-parse "$newTip^{tree}"
+  if ($exp -eq $act) { "ok  $newTip" } else { "DIFFERENT - STOP  $newTip" }
+}
+
+# lowest surviving rung — its base is main
+TreeCheck <old-main> main <recorded-rung1> <rung1>
+# every rung above — base is the rung below it
+TreeCheck <recorded-rung1> <rung1> <recorded-rung2> <rung2>
+TreeCheck <recorded-rung2> <rung2> <recorded-rung3> <rung3>
+#   ...continue up to <tip>
+```
+
+**Expect:** `ok` for every rung.
+**STOP if:** any prints `DIFFERENT`. Do not push. Inspect with `git diff <recorded-sha> <rung>` and account for every line — anything that is not upstream's own new work is code a replay resurrected or dropped.
+
+**One legitimate exception.** If step 3 found upstream modifications and rule 1 forced you to take their version where a rung of yours also touched those lines, that rung *will* print `DIFFERENT` — the adaptation is real. Confirm it is only that:
+
+```powershell
+git diff main <tip> -- <the file list from step 3>
+```
+
+**Expect:** only changes your *upper* rungs make on purpose.
+**STOP if:** any upstream edit appears reverted. That failure ships silently and is the reason step 3 exists.
+
+> **This is the one check that must never be skipped.** A rebase replays your old commits, so it will happily re-introduce code upstream deleted on purpose — this has actually happened here, and only the tree diff caught it. The stack makes it worse: one `--update-refs` run can resurrect deleted code at *any* rung, and a bad resolution low in the stack propagates silently through every rung above. Running the check is free; only explaining a failure costs anything.
+
+**6. Only if rungs of yours merged — retire them.** Otherwise go to step 7. Repeat for **each** rung from step 2's list:
+
+```powershell
+git branch -d <merged rung>
+git push origin --delete <merged rung>
+```
+
+- Remove its inventory row.
+- Update the "Stacked on" line and compare link in any open PR that pointed at it. The lowest surviving rung now sits on `main`; if several merged at once, only the *lowest* survivor moves to `main` — the rest still point at the rung below them.
+
+**7. Push the stack and rebuild the build branch.**
+
+```powershell
+git push --force-with-lease origin <each surviving rung with an open PR>
+```
+
+Then [rebuild `feature/experimental`](#rebuild-featureexperimental) — step 4 rewrote every rung SHA, so the build branch is holding commits that no longer exist. Do not try to `git merge` the new tip into the old branch; it dedupes by content but leaves both copies in history.
 
 > **🤖 Work with AI Agent if...**
-> - **Any ground-truth diff is non-empty and you can't account for every line.** Hand it over *before* you `git push --force-with-lease`.
-> - You need to judge *upstream-intentional deletion* vs *accidentally lost code*. The PR #92 lesson: check `git log -S <string>` and `git show` on upstream history **before re-adding anything** a rebase appears to have "dropped".
-> - The rebase stops with conflict markers — hand over the one conflict and say which rung it stopped on.
+> - Any step-5 diff is non-empty and you can't account for every line. Hand it over *before* `git push --force-with-lease`.
+> - Step 4 conflicts on a line upstream modified and rule 1 vs rule 2 isn't obvious. Hand over the hunk plus which rung it stopped on.
+> - You need to judge *upstream-intentional deletion* vs *accidentally lost code*. Highest-value handoff in this document — check `git log -S <string>` and `git show` against upstream history **before re-adding anything** a rebase appears to have "dropped".
 
 ## Include someone else's upstream PR or branch
 
@@ -362,28 +378,31 @@ NOTE: This is a 'rare' situation, but it does happen.
 
 Contrib work does **not** enter the stack — it merges straight into `feature/experimental`, so it can never contaminate a PR diff:
 
+Pick one fetch; `<contrib-branch>` below is whichever local name it created.
+
 ```powershell
 git fetch upstream pull/<N>/head:contrib/<N>-<slug>    # for an upstream PR
-git fetch upstream <branch>:contrib/<slug>              # for an upstream branch
+git fetch upstream <branch>:contrib/<slug>             # for an upstream branch
+
 git checkout feature/experimental
-git merge --no-ff contrib/<N>-<slug>
+git merge --no-ff <contrib-branch>
 uv run pytest tests/ --tb=no -q
 git push origin feature/experimental
 ```
 
-This is the **one** exception to "nothing but the fork-identity commit and the stack tip is merged into experimental." Record it in the rebuild play's checklist, because a rebuild will drop it otherwise.
+This is the **one** exception to "nothing but the fork-identity commit and the stack tip is merged into experimental." Add an inventory row for it — a rebuild re-derives `feature/experimental` from scratch and will drop the merge unless you know to replay it.
 
 **When it gets new commits** — re-fetch and re-merge; only the new commits flow in:
 
 ```powershell
 git fetch upstream +pull/<N>/head:contrib/<N>-<slug>   # '+' allows update even if the author force-pushed
 git checkout feature/experimental
-git merge contrib/<N>-<slug>                            # force-pushed rewrites still dedupe by content
+git merge <contrib-branch>                             # force-pushed rewrites still dedupe by content
 uv run pytest tests/ --tb=no -q
 git push origin feature/experimental
 ```
 
-**When it merges upstream** — the *My PR was accepted* play applies; the content dedupes on `git merge main`, then delete the `contrib/*` branch.
+**When it merges upstream** — run [Upstream main moved](#upstream-main-moved); the content dedupes on `git merge main`, then delete the `contrib/*` branch and its inventory row.
 
 Don't push `contrib/*` branches to origin — they're not your work; the fetch recreates them anytime.
 
@@ -391,433 +410,166 @@ Don't push `contrib/*` branches to origin — they're not your work; the fetch r
 > - The merge conflicts. **You didn't write this code**, so the "obvious" resolution is less obvious than usual — the bar for handing over is lower here than in any other play. Hand over the conflict *plus* the upstream PR link.
 > - The author force-pushed and the re-merge behaves strangely. Content-level dedupe usually handles it, but if the result looks wrong, don't force anything — hand it over.
 
-## Rebuild feature/experimental
+## My PR was rejected
 
-Needed whenever the stack's SHAs were rewritten (any rebase). Cheap and scriptable — this is the payoff of the stacked model.
+Drop the rung; everything above it restacks onto the rung below.
 
-The `fork:` commit sits directly on `main` and is tagged `fork-identity`, so a rebuild is two commands — point the branch back at the tag and re-merge the tip:
+> **If the rejected rung is `<tip>`, none of this applies.** Nothing sits above it, so rejection costs one decision — keep it as a fork-only rung or delete it — and zero restacking. That is why the most contentious rung belongs on top.
+
+**1. Record `<tip>`.**
 
 ```powershell
-git checkout -B feature/experimental fork-identity
-git merge <current stack tip>
-git merge --no-ff <each contrib/* branch still in play>     # rare; see checklist below
-uv run pytest tests/ --tb=no -q
-git push --force-with-lease origin feature/experimental
+git rev-parse --short <tip>                  # write this down
 ```
 
-**When you need this:** only when the stack's SHAs were rewritten — an upstream rebase, or inserting a feature *below* an existing rung. Adding a feature *on top* of the stack needs no rebuild at all; just `git merge feature/<new>` into experimental.
+**2. Restack over the gap.**
 
-If you'd rather keep a safety net for a risky rebuild, `git branch experimental-old feature/experimental` first and delete it once tests pass.
+```powershell
+git rebase --update-refs --onto <rung-below> <rejected rung> <tip>
+```
 
-Checklist of things that live **only** on `feature/experimental` and must survive a rebuild:
+**3. Verify — `<tip>` only.** The new base is a rung you already had, so the only change should be the rejected rung's code disappearing.
 
-1. The fork-identity commit (cherry-pick it — find it with `git log --oneline --grep='^fork:' experimental-old`)
-2. Any `contrib/*` merges
+```powershell
+git diff <recorded-tip> <tip> --stat
+```
 
-Nothing else should ever be there. If `git log main..experimental-old --no-merges` shows anything outside that list, it belongs in a rung and was put in the wrong place.
+**Expect:** exactly the rejected rung's code gone, nothing else.
+**STOP if:** anything else moved.
+
+**4. Delete and push.**
+
+```powershell
+git branch -D <rejected rung>
+git push origin --delete <rejected rung>
+git push --force-with-lease origin <each rung that was ABOVE the rejected one>
+```
+
+Rungs below the rejected one did not move — do not push them.
+
+**5. Fix the paperwork.**
+
+- Remove the rejected rung's inventory row.
+- In every open PR that was above it: update the "Stacked on" line and the compare link. The rung directly above the gap now sits on `<rung-below>` — or on `main`, if the rejected rung was rung 1.
+
+Then [rebuild `feature/experimental`](#rebuild-featureexperimental) — the SHAs it holds no longer exist.
+
+Keep the rejected code if you still want it locally: don't delete the branch, move it *above* the tip instead (`git rebase --onto <tip> <rung-below> <rejected rung>`) and mark the inventory row "local only, not for upstream."
 
 > **🤖 Work with AI Agent if...**
-> - The cherry-picked fork-identity commit conflicts. It shouldn't — if the `build-rc`/`rc-artifacts` rename stayed out of it, `build.yml`/`dev-build.yml`/`release.yml` all auto-merge with `feature/workflow-node24`. A conflict here means the rename crept back in.
-> - `git log main..experimental-old --no-merges` shows commits that aren't on the checklist. Those are lost work — figure out which rung they belong to before you delete `experimental-old`.
+> - Upper rungs *depended* on the rejected rung's code. The restack will conflict everywhere, and the right answer may be to fold the rejected rung's essential parts into the upper rung. Hand over the conflict plus what upstream objected to.
 
-## Restart checklist — DELETE THIS SECTION WHEN DONE
+## Squash a rung
 
-One-time migration from parallel-off-main branches to the stack. Pure procedure; the *why* lives in the sections above. Work top to bottom, tick as you go, stop on any **STOP**.
+Rungs should reach upstream as one commit, or a small number of clearly separable ones.
 
-Everything runs in `C:\BTR\OpenSource\tally-stacked`. `C:\BTR\OpenSource\tally` is the archive — untouched, still your working build, and your safety net until step 9.
+**Squashing `<tip>` is cheap** — nothing sits above it. **Squashing any lower rung replays every rung above it**, so do it as early as you can; the cost grows with each rung you add.
 
-**Progress:** ☑ 0 · ☑ 1 · ☐ 2 · ☐ 3 · ☐ 4 · ☐ 5 · ☐ 6 · ☐ 7 · ☐ 8 · ☐ 9 · ☐ 10
+**1. Record every rung tip.** Recovery needs all of them, not just the one you are squashing.
 
-**Before any `rebase -i`:** `echo $env:GIT_EDITOR` must be empty. If it prints anything, `Remove-Item Env:GIT_EDITOR`. Otherwise git accepts the todo list unchanged and the rebase silently does nothing.
+```powershell
+git branch --format='%(refname:short)' |
+  Where-Object { $_ -notin 'main','playbook','feature/experimental' -and $_ -notlike 'contrib/*' } |
+  ForEach-Object { "{0,-40} {1}" -f $_, (git rev-parse --short $_) }
+```
 
-**How `rebase -i` works:** VS Code opens the commit list, oldest first, with a dropdown on each line (Pick / Squash / Fixup / Edit / Drop). Change the first word or use the dropdown, `Ctrl+S`, then `Ctrl+W` to close the tab — git waits for the close.
+**2. Squash.** The range must run to `<tip>`, not to the rung — otherwise only the rung moves and every rung above is stranded on the pre-squash commits.
+
+```powershell
+git rebase -i --update-refs <rung-below> <tip>
+```
+
+VS Code opens the commit list oldest-first with a dropdown per line. It contains **every commit from `<rung-below>` up to `<tip>`**, with `update-ref refs/heads/<branch>` lines marking each rung boundary.
+
+Set the target rung's commits to `s` (squash); leave everything else `pick`. A second editor then opens with all the squashed messages — edit down to the final one, save, close the tab.
 
 | Mark | Effect |
 |---|---|
 | `pick` | keep as its own commit |
-| `s` squash | fold into the line above; **opens one editor with every folded message** so you can write the combined message |
-| `f` fixup | fold into the line above and discard its message silently |
-| `e` edit | stop here so you can change something, then `git rebase --continue` |
+| `s` squash | fold into the line above; opens the combined-message editor |
+| `f` fixup | fold into the line above, discard its message silently |
+| `e` edit | stop here, then `git rebase --continue` |
 
-These checklists use **`s`** — after you close the todo list, a second editor opens containing all the squashed messages under a `# This is a combination of N commits.` header. Delete what you don't want, write the real subject on line 1, save, close. No separate `git commit --amend` needed.
+> **Never delete or squash across an `update-ref` line.** Those lines are what move the intermediate branch refs; folding a commit across one merges two rungs into a single branch.
 
-Recover from any mess with `git reset --hard old/<branch>`, then retry.
+A fixup that sits later in history than its parent can be moved — cut its line, paste it under the parent, mark `f`. If that conflicts, `git rebase --abort`, drop that one reorder, retry. For future work avoid the problem entirely: `git commit --fixup=<sha>`, then `git rebase -i --autosquash --update-refs <rung-below> <tip>`.
 
-**The verification helper.** Paste this once per shell session; every rung uses it:
-
-```powershell
-function TreeCheck($oldBase, $below, $oldTip, $newTip) {
-  $exp = (git merge-tree --write-tree --merge-base=$oldBase $below $oldTip) -split "`n" | Select-Object -First 1
-  $act = git rev-parse "$newTip^{tree}"
-  if ($exp -eq $act) { "ok  $newTip" } else { "DIFFERENT - STOP  $newTip" }
-}
-```
-
-It builds the tree the new rung *should* have (rung below + the old rung's own changes) and compares tree hashes. Exact, and unaffected by squashing.
-
-> **`$oldBase` is the OLD branch's base, and `--merge-base` is not optional.** Let git infer it and you get `main`, which double-applies everything the old branch was stacked on. Real example: checking rung 4 without it produced an "expected" tree with **412 extra lines** in `spending_report.*` and the test files — code `charts-reimagined` had deliberately deleted, resurrected because `ui-tweaks` was merged in twice. That is the PR #92 hazard wearing a different hat.
->
-> `$oldBase` is `main` for rungs 1, 2, 3 and 5 — but `old/feature/ui-tweaks` for rung 4, because `old/feature/charts-reimagined` was branched from it.
-
-> Do **not** verify by comparing `git diff` output between old and new branches. Patch text carries `index <hash>..<hash>` lines and `@@` line numbers that shift whenever two rungs touch the same file — you get differences that mean nothing. (Real example: `globbing` adds 5 lines to `config/settings.yaml.example` above a `ui-tweaks` hunk in that same file, producing 6 phantom differences across 4,438 identical content lines.) Compare trees, not patches.
-
----
-
-### 0. Setup ☑
+**3. Verify — content unchanged, commits fewer.**
 
 ```powershell
-git clone https://github.com/terryaney/OpenSource.tally.git C:\BTR\OpenSource\tally-stacked
-cd C:\BTR\OpenSource\tally-stacked
-git remote add old C:\BTR\OpenSource\tally
-git remote add upstream https://github.com/davidfowl/tally
-git fetch old
-git fetch upstream
-git config rerere.enabled true
-git config rebase.updateRefs true
-
-uv sync --extra dev                            # pytest is an optional extra, NOT installed by `uv run`
-uv run pytest tests/ --tb=no -q                # baseline: main must be green before building anything
-
-git rev-parse main upstream/main old/main      # three identical SHAs
-```
-
-**STOP if** the SHAs differ, a fetch errored, or the baseline tests fail.
-
-> A fresh clone's `.venv` has runtime deps only. Without `uv sync --extra dev` you get `error: Failed to spawn: pytest — program not found`. Add `--extra build` as well when you need pyinstaller for a Tier 2 local build.
-
----
-
-### 1. Rung 1 — `feature/workflow-node24` ☑
-
-```powershell
-git checkout -b feature/workflow-node24 main
-git cherry-pick main..old/feature/workflow-node24
-
-git range-diff main...old/feature/workflow-node24 main...feature/workflow-node24
-git log --oneline main..feature/workflow-node24                    # 1
-```
-
-**STOP if** conflict, any non-`=` line, or count ≠ 1. No squash — already one commit.
-
----
-
-### 2. Rung 2 — `feature/globbing-documentation` ☐
-
-```powershell
-git checkout -b feature/globbing-documentation feature/workflow-node24
-git cherry-pick main..old/feature/globbing-documentation
-
-git range-diff main...old/feature/globbing-documentation `
-               feature/workflow-node24...feature/globbing-documentation
-git log --oneline feature/workflow-node24..feature/globbing-documentation   # 3
-```
-
-**STOP if** conflict, any non-`=` line, or count ≠ 3.
-
-```powershell
-git rebase -i feature/workflow-node24
-```
-
-```
-pick  <sha>  docs/tests: document and validate glob file patterns
-s     <sha>  tests: stabilize glob CLI assertions
-s     <sha>  tests: fix single-file glob fallback expectation
-```
-
-A second editor opens with all three messages — edit down to one, save, close.
-
-```powershell
-TreeCheck main feature/workflow-node24 old/feature/globbing-documentation feature/globbing-documentation
-git log --oneline feature/workflow-node24..feature/globbing-documentation    # 1
-```
-
-**STOP if** it prints `DIFFERENT` or count ≠ 1. Do not start step 3 until both pass.
-
----
-
-### 3. Rung 3 — `feature/ui-tweaks` ☐
-
-```powershell
-git checkout -b feature/ui-tweaks feature/globbing-documentation
-git cherry-pick main..old/feature/ui-tweaks
-
-git range-diff main...old/feature/ui-tweaks `
-               feature/globbing-documentation...feature/ui-tweaks
-git log --oneline feature/globbing-documentation..feature/ui-tweaks          # 12
+git diff <recorded-tip> <tip>                     # MUST be empty
+git log --oneline <rung-below>..<rung>            # the squashed rung: expected count
 uv run pytest tests/ --tb=no -q
 ```
 
-**STOP if** conflict, any non-`=` line, count ≠ 12, or tests fail.
+**Expect:** empty diff, fewer commits on `<rung>`, tests pass.
+**STOP if:** the diff is non-empty. Squashing must never change content.
+
+**Recovery.** Mid-rebase: `git rebase --abort`. After it completed, restore each rung from step 1 — `git reset --hard` would wreck whichever branch happens to be checked out:
 
 ```powershell
-git rebase -i feature/globbing-documentation
+git branch -f <rung> <recorded-sha>               # repeat for every rung that moved
 ```
 
-```
-pick  1c7c046  UI Tweaks
-s     eb5b245  UI Tweaks - Report Fields Setting
-s     1929f38  Fix two data-correctness bugs, then polish the charts
-s     346cbca  Transaction Details - container + collapser polish
-s     e004d7e  Fix view-toggle cascade in Transaction Details
-s     3342761  Transaction Details Mobile Wrap
-s     e43dd78  Polish Row UX and Transaction Column Sizing
-s     2b56528  Save Layout Settings to Local Storage
-s     91e8f8d  Fixed 'report fields' badge rendering
-s     dfece33  Remove dead getTransactionYears/showYear plumbing
-s     f42e42b  Fix merchant filter regression from row-UX/date polish
-s     2538433  Margin on field/memo badge
-```
-
-*(SHAs shown are the originals; yours will differ after the cherry-pick — match on subject line.)*
-
-The combined-message editor opens with all 12 messages. Write the real summary on line 1 and **keep the two data-correctness bug fixes from `1929f38` in the body** — they vanish from the log otherwise, and a commit titled "UI tweaks" that quietly changes reported numbers is a reviewer-trust problem.
+**4. Push and absorb.**
 
 ```powershell
-TreeCheck main feature/globbing-documentation old/feature/ui-tweaks feature/ui-tweaks
-git log --oneline feature/globbing-documentation..feature/ui-tweaks          # 1
+git push --force-with-lease origin <every rung from `<rung>` up to `<tip>` that has an open PR>
+```
+
+Then [rebuild `feature/experimental`](#rebuild-featureexperimental) — the rung SHAs changed.
+
+> **Never squash a rung that has an open PR** unless you intend to force-push it — the PR diff changes wholesale under the reviewer.
+
+> **🤖 Work with AI Agent if...** a reorder conflicts, or step 3's diff is non-empty and you can't see what changed.
+
+## Rebuild feature/experimental
+
+`feature/experimental` is `main` + the `fork:` commit + a merge of the stack tip. When a rebase rewrites rung SHAs, the branch is holding commits that no longer exist — so you throw it away and re-derive it. Two commands, because the `fork:` commit sits directly on `main` and is tagged `fork-identity`.
+
+```powershell
+git checkout -B feature/experimental fork-identity
+git merge <tip>
+git merge --no-ff <each contrib/* branch still in play>     # rare; usually none
 uv run pytest tests/ --tb=no -q
+git push --force-with-lease origin feature/experimental
 ```
 
-**STOP if** it prints `DIFFERENT`, count ≠ 1, or tests fail.
+**When you need this — only after a rebase.** These rewrite rung SHAs:
 
----
+| Play | Rewrites SHAs? |
+|---|---|
+| Work on a rung → editing `<tip>` | no — just adds a commit |
+| New feature (on top of the stack) | no |
+| Submit PRs · Include someone else's PR | no |
+| Work on a rung → editing a **lower** rung | **yes** |
+| Upstream main moved | **yes** |
+| My PR was rejected | **yes** |
+| Squashing an existing rung | **yes** |
 
-### 4. Rung 4 — `feature/charts-reimagined` ☐
+For the "no" rows, just `git merge <branch>` into `feature/experimental` — no rebuild.
+
+**Never `git merge <tip>` into the *existing* branch after a rebase.** It dedupes by content so it looks like it worked, but both the old and new copies of every rung stay in the history and the next rebuild inherits the mess. Re-derive from the tag instead.
+
+**Only two things may live on `feature/experimental` alone:** the `fork:` commit and any `contrib/*` merges. Both halves need checking before you discard the branch — `--no-merges` hides merges, so it cannot see the second half:
 
 ```powershell
-git checkout -b feature/charts-reimagined feature/ui-tweaks
-git cherry-pick old/feature/ui-tweaks..old/feature/charts-reimagined
+git log main..feature/experimental --no-merges --oneline
+#   → rung commits + exactly one `fork:` commit, nothing else
 
-git range-diff old/feature/ui-tweaks...old/feature/charts-reimagined `
-               feature/ui-tweaks...feature/charts-reimagined
-git log --oneline feature/ui-tweaks..feature/charts-reimagined               # 12
-uv run pytest tests/ --tb=no -q
+git log main..feature/experimental --merges --oneline
+#   → the <tip> merge, plus one merge per contrib/* branch still in play
 ```
 
-**STOP if** conflict, any non-`=` line, count ≠ 12, or tests fail.
+Anything extra in the first list is work committed to the wrong branch — move it to a rung before rebuilding, or you lose it. Anything unexpected in the second means something was merged into the build branch that shouldn't have been; identify it before re-deriving, because the rebuild will drop it. Note every `contrib/*` merge you find — the rebuild command above has to replay each one.
 
-**4a — squash 12 → 2:**
+Safety net for a risky rebuild: `git branch experimental-old feature/experimental` first, delete once tests pass.
 
-```powershell
-git rebase -i feature/ui-tweaks
-```
+> **🤖 Work with AI Agent if...**
+> - Either `git log main..feature/experimental` listing turns up something unexpected — a commit that is neither a rung commit nor the `fork:` commit, or a merge that is neither `<tip>` nor a `contrib/*`. Hand over that list *before* rebuilding; the rebuild discards whatever it is.
+> - `git merge <tip>` conflicts against the `fork:` commit. It shouldn't; the only overlap is `dev-build.yml`, and it is conflict-free as long as the `build-rc`/`rc-artifacts` naming stayed upstream's. A conflict there means that rename crept back in.
+> - `fork-identity` doesn't resolve. Find it with `git log --oneline --grep='^fork:' feature/experimental` and re-tag before rebuilding.
 
-```
-pick  3baa99a  Added new reimagined chart(s) layout
-s     08f78fe  Added chart tests
-s     4d72e79  Improve responsive label behavior, resize rerendering, compare-year paging
-s     13add0c  Removing empty xaxis items
-s     848f6c3  Documentation Updates
-pick  99104c3  Restore KPI test hooks for report compatibility
-s     4a2e2fb  KPI Sparklines are based on last month containing data
-s     72e035a  KPI mistakenly used 'transfer only' months as anchor
-s     9078a1d  Changed KPI to be month based instead of all time
-s     9b88d67  Reconcile KPI detail math with trend baseline
-s     897b37f  Exclude transfer-only merchants from fixed outputs
-s     daebc8f  Stabilize chart behavior and default-hide empty legend series
-```
-
-**Two** combined-message editors open in sequence — one per group. Suggested subjects: *"Add reimagined chart layout"* and *"Correct KPI math and stabilize chart rendering"*.
-
-**4b — split the layout commit by path (it is 31 files / +3,647 lines):**
-
-```powershell
-git rebase -i feature/ui-tweaks       # mark the LAYOUT commit `e`, leave the KPI commit `pick`
-```
-
-Git stops with the layout commit applied. Then:
-
-```powershell
-git rev-parse HEAD                    # record this SHA
-git reset HEAD~1
-
-git add -A src tests config
-git commit -m "Add reimagined chart layout"
-
-git add -A docs
-git commit -m "Document chart gallery and refresh screenshots"
-
-git status --short                    # EMPTY
-git diff <recorded-sha> HEAD          # EMPTY
-git rebase --continue
-```
-
-`-A` is required — it stages the `docs/demo.gif` rename and the `docs/screenshot.png` deletion. Plain `git add docs` misses both.
-
-```powershell
-TreeCheck old/feature/ui-tweaks feature/ui-tweaks old/feature/charts-reimagined feature/charts-reimagined
-git log --oneline feature/ui-tweaks..feature/charts-reimagined               # 3
-git status --short                                                            # EMPTY
-uv run pytest tests/ --tb=no -q
-```
-
-**STOP if** it prints `DIFFERENT`, count ≠ 3, status shows anything, or tests fail.
-
----
-
-### 5. Rung 5 — `feature/merchant-composite-keys` ☐
-
-**Do not cherry-pick this rung.** Replaying `old/issue/88` onto the stack means hand-merging ui-tweaks' merchant-cell restructure against markup written for main — hundreds of conflicted lines to arrive at a 13-line result. `old/feature/experimental` already holds that reconciliation, tested: it is 88 plus its four integration commits, applied to exactly this code.
-
-Take the reconciled state directly. These 8 files are the complete rung-5 delta (~711 lines):
-
-```powershell
-git checkout -b feature/merchant-composite-keys feature/charts-reimagined
-
-git checkout old/feature/experimental -- `
-  src/tally/analyzer.py src/tally/commands/explain.py src/tally/report.py `
-  src/tally/spending_report.js tests/test_analyzer.py tests/test_cli.py `
-  tests/test_report.py tests/test_report_html.py
-
-git status --short                      # exactly those 8, all M or A
-uv run pytest tests/ --tb=no -q
-git commit -m "Fix incorrect category display for duplicate merchant names"
-
-git diff feature/merchant-composite-keys old/feature/experimental --stat
-#   → ONLY .github/workflows/*, docs/index.html, _version.py, cli.py, .vscode/**
-```
-
-Safe because the only difference between `feature/charts-reimagined` and `old/feature/experimental` is 88 + its integration commits + fork identity + notes — and fork identity touches none of those 8 files. That last diff is the proof, and it is the same check step 8 runs.
-
-Split `src/` from `tests/` afterward if you want two commits for review (same path-split recipe as step 4b).
-
-`cc9872c` (date tests) needs **no placement — it is redundant**. Verified: its assertions are already in `feature/charts-reimagined`, arriving via `f42e42b` in ui-tweaks. It was the same fix authored twice, once on experimental and once on the branch. Ignore it.
-
-**STOP if** a cherry-pick conflicts or tests fail. Hand over the conflict plus the *why* body of the commit being applied.
-
----
-
-### 6. Fork identity + `feature/experimental` ☐
-
-```powershell
-git checkout -b feature/experimental main
-git cherry-pick 058963d 4e84065 bd97e91
-```
-
-- `058963d` workflows + `_version.py` REPO_URL (73 lines)
-- `4e84065` `docs/index.html` + `cli.py` description (2 lines)
-- `bd97e91` `release.yml` workflow-file lookup (2 lines)
-
-Then edit `.github/workflows/dev-build.yml` and change **exactly two lines** (~line 69) back to David's wording:
-
-```yaml
-      # Download RC artifacts
-      - name: Download RC artifacts
-```
-
-> **Change nothing else in that file.** Those two lines sit immediately above `uses: actions/download-artifact`, which rung 1 bumps `@v4` → `@v8` — that adjacency is the *only* thing that ever conflicted. The job name `build-release`, the `needs:` lists, `path: release-artifacts`, `pattern: tally-*-experimental-release`, the echo text and the zip glob all merge cleanly and **must stay as-is**. Reverting `pattern:` to `tally-*-rc` breaks artifact matching outright: `build.yml` emits `tally-<platform>-experimental-release`, so the download finds nothing and the release job fails with zero artifacts.
-
-There is no `paths-ignore` to remove — it existed only in `f5a773a`, which this step skips.
-
-```powershell
-git commit -am "fork: keep upstream RC wording on the download step"
-git rebase -i main                    # squash all 4 into "fork: identity and experimental build wiring"
-git tag fork-identity                 # rebuilds reset to this tag — do not skip
-git merge feature/merchant-composite-keys
-uv run pytest tests/ --tb=no -q
-```
-
-**Never build this commit by diffing against `main`** — `old/feature/experimental-foundational` is based on `main~1`, so a diff shows 11 files including a revert of merged PR #92. The true content is 6 files, +75/−68. Cherry-pick is immune.
-
-**STOP if** the cherry-picks conflict, or `git log main..feature/experimental --no-merges` shows anything but the one `fork:` commit.
-
----
-
-### 7. `playbook` orphan branch ☐
-
-```powershell
-git checkout --orphan playbook
-git rm -rf .
-```
-
-Copy from `C:\BTR\OpenSource\tally-notes\.vscode\` into `.vscode\`: `Plans\`, `branches.md`, `wishList.md`. (This file becomes the new `branches.md` — delete the old one and this section with it.)
-
-```powershell
-git add -A
-git commit -m "playbook: notes, plans, prototypes"
-git push origin playbook
-git worktree add ..\tally-notes-new playbook
-```
-
----
-
-### 8. Acceptance — all four must pass ☐
-
-```powershell
-uv run pytest tests/ --tb=no -q
-
-# the stack reproduces the old build, modulo fork identity
-git diff feature/merchant-composite-keys old/feature/experimental --stat
-#   → ONLY fork-identity files and .vscode/**
-
-# each rung's tree matches what it should be (see TreeCheck in the primer above)
-TreeCheck main                  main                           old/feature/workflow-node24        feature/workflow-node24
-TreeCheck main                  feature/workflow-node24        old/feature/globbing-documentation feature/globbing-documentation
-TreeCheck main                  feature/globbing-documentation old/feature/ui-tweaks              feature/ui-tweaks
-TreeCheck old/feature/ui-tweaks feature/ui-tweaks              old/feature/charts-reimagined      feature/charts-reimagined
-#   → all four "ok" (rung 5 is not checkable this way — it absorbed the integration commits)
-
-# the build works
-git checkout feature/experimental
-uv run tally up -c C:\BTR\TallySpending\tally\config -o C:\BTR\TallySpending\tally\output\spending_check.html
-```
-
-Final shape: 6 commits across rungs 1–4 (1 + 1 + 1 + 3), plus rung 5 and the `fork:` commit.
-
-**STOP if** anything fails. Do not proceed to step 9 — the archive is still your only good copy.
-
----
-
-### 9. Cutover ☐
-
-```powershell
-git push origin feature/workflow-node24 feature/globbing-documentation `
-                feature/ui-tweaks feature/charts-reimagined `
-                feature/merchant-composite-keys feature/experimental --force-with-lease
-```
-
-**9a — retire the old notes worktree.** `C:\BTR\OpenSource\tally-notes` is a worktree of the **old** repo, checked out on `feature/experimental-foundational`. Its content now lives on `playbook`, so it is dead weight — and leaving it registered means the old repo keeps a lock on that directory.
-
-```powershell
-# confirm nothing uncommitted is left behind
-git -C C:\BTR\OpenSource\tally-notes status --short
-
-git -C C:\BTR\OpenSource\tally worktree remove C:\BTR\OpenSource\tally-notes
-git -C C:\BTR\OpenSource\tally worktree list          # tally-notes gone
-```
-
-`worktree remove` refuses if the tree is dirty — commit or discard first, or add `--force` once you have checked the status output. If the directory was already deleted by hand, use `git -C C:\BTR\OpenSource\tally worktree prune` instead.
-
-**9b — close VS Code, then swap the folder names.**
-
-```powershell
-Rename-Item C:\BTR\OpenSource\tally          tally-archive
-Rename-Item C:\BTR\OpenSource\tally-stacked  tally
-```
-
-**9c — repair the worktree link.** `C:\BTR\OpenSource\tally-playbook` stores an **absolute** path back to `...\tally-stacked\.git\worktrees\...`, and the repo stores an absolute path forward to the worktree. Renaming the repo breaks both. Fix both directions in one command:
-
-```powershell
-git -C C:\BTR\OpenSource\tally worktree repair C:\BTR\OpenSource\tally-playbook
-git -C C:\BTR\OpenSource\tally worktree list          # both paths correct
-git -C C:\BTR\OpenSource\tally-playbook status        # resolves without error
-```
-
-> **Do not rename `tally-playbook` itself.** `worktree repair` fixes a moved *repo*; a moved worktree with a simultaneously moved repo can leave it unresolvable. If you do want it renamed, do that in a separate step and re-run `worktree repair` from the new location afterwards.
-
-**9d — reopen.** Point `Tally.code-workspace` at `C:\BTR\OpenSource\tally` and `C:\BTR\OpenSource\tally-playbook`, reopen it, then rebuild what a fresh clone loses — see *What a fresh clone loses*.
-
----
-
-### 10. Upstream ☐
-
-Close PRs #91, #93, #94, #95, copying anything worth keeping into `.vscode\Plans\` first. Then open one PR from `feature/workflow-node24` — it fixes David's broken `build` job, so it is the easiest thing he will ever be asked to merge.
-
-Delete `tally-archive` only after the first rung merges. Then delete this section.
-
----
-
-> **🤖 Hand over when:** a rung 1–4 cherry-pick conflicts (the premise says they can't — something is wrong); a tree diff is non-empty; rung 5 conflicts and the integration commit's *why* body doesn't resolve it; step 8's first check lists code you don't recognise (work that existed only on `old/feature/experimental` and is about to be lost).
 ## When to abandon upstream
 
 **Not a trigger: David going quiet.** His stated cadence is *"my interest spikes when I need to run it, maybe 4 times a year"* (2026-07-14). Months of silence is the documented normal, not a signal. Do not restructure anything because a PR sat unreviewed.
@@ -829,7 +581,7 @@ Delete `tally-archive` only after the first rung merges. Then delete this sectio
 | Rung rejected, nothing above depends on it | *My PR was rejected* play | minutes |
 | Rung rejected, upper rungs depend on it | Same play, but fold essentials upward | hours |
 | Upstream main moved | *Upstream main moved* play | minutes, plus per-rung ground-truth checks |
-| David merges a *modified* version of a rung | *My PR was accepted*, resolve only his hunks | hours, highest judgment risk |
+| Upstream merges a *modified* version of a rung | *Upstream main moved* step 3, resolve only their hunks | hours, highest judgment risk |
 | **You decide the tax isn't worth it** | Collapse: merge the whole stack into one branch, stop rebasing on upstream, stop opening PRs | one afternoon |
 
 The last row is always available and costs nothing to defer. Nothing in this model traps you upstream — the stack is a *presentation* choice, and `feature/experimental` is a working build regardless of whether a single PR ever merges.
@@ -851,7 +603,10 @@ Both are opened together via `C:\BTR\Extensibility\Tally.code-workspace` (a VS C
 
 > **⚠ Renaming or moving either directory breaks the worktree link** — both store absolute paths. Repair with `git -C <repo> worktree repair <worktree-path>`, which fixes both directions.
 
-> **`playbook` is an orphan branch.** It shares no commits with `main` and merges into nothing. That is deliberate: notes cannot reach a PR diff, cannot trigger a build, and cannot bloat the stack. It also means `git log main..playbook` is meaningless and `git merge playbook` should never be run.
+> **`playbook` is an orphan branch** — it shares no commit history with `main`. Two consequences:
+>
+> - **`git merge playbook` fails by default**: `fatal: refusing to merge unrelated histories`. Accidental propagation into a rung is blocked by git, not by remembering a rule. Deliberate propagation is still possible via `--allow-unrelated-histories` or `git cherry-pick`; don't.
+> - **`git log main..playbook` returns every commit on `playbook`**, since none are reachable from `main`. It is valid, just useless — don't reach for it to compare the two.
 
 ## What is deliberately never committed
 
@@ -882,6 +637,16 @@ git config rerere.enabled true
 git remote add upstream https://github.com/davidfowl/tally
 # 5. rebase.updateRefs so plain `git rebase` doesn't strand mid-stack refs
 git config rebase.updateRefs true
+# 6. the fork-identity tag — clones do NOT fetch tags that were never pushed
+git fetch origin --tags
+git tag -l fork-identity                     # must print; Rebuild feature/experimental depends on it
+```
+
+If `fork-identity` is missing, recreate and push it so the next clone has it:
+
+```powershell
+git tag fork-identity $(git log --format='%H' --grep='^fork:' feature/experimental | Select-Object -Last 1)
+git push origin fork-identity
 ```
 
 `C:\BTR\Extensibility\Tally.code-workspace` and `.claude/settings.local.json` (which grants agents access to `../tally-playbook/` via `permissions.additionalDirectories`) are also untracked — recreate or restore them from backup.

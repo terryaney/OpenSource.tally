@@ -25,7 +25,7 @@ Recommended approach: preserve all current behavior by default. Keep existing `f
    - Audit ignores non-date filters. Date filters set one shared anchor month/date for the whole audit table; default anchor is latest complete month in the report data.
    - Audit rows share the same lookback window ending at the anchor, so totals are coherent. Do not anchor each row independently on its own last payment date.
    - `fixed-budget` math uses one shared complete-month lookback window. Default anchor is the latest complete month in report data; date filters set the anchor to the latest complete month at or before the filter end. The window includes the anchor month plus up to 11 prior complete months; current partial month is excluded.
-   - Group fixed-budget audit rows by merchant display name plus category/subcategory (and, after PR #91, compatible composite identity), so same merchant with different fixed categories appears as separate rows.
+   - Group fixed-budget audit rows by merchant display name plus category/subcategory, using the composite merchant identity from `feature/merchant-composite-keys`, so same merchant with different fixed categories appears as separate rows.
    - Replace the old authoritative cadence column with an informational `Payment Pattern` column. Payment Pattern is a best-effort guess such as Monthly-ish, Annual-ish, Sparse, Irregular, or Unknown; it does not drive `fixed-budget` monthly-average math.
    - Audit columns should be fixed-budget oriented: Merchant, Category/Subcategory, Monthly Avg, Annualized, Payment Pattern, Window, Months Seen, Last Paid, Warnings.
    - Ship two `fixed-budget` warnings first: limited history when fewer than 12 complete months are available in the lookback, and recently started fixed-budget item when activity begins late in the window.
@@ -37,12 +37,12 @@ Recommended approach: preserve all current behavior by default. Keep existing `f
    - `c:\BTR\OpenSource\tally\src\tally\commands\diag.py`
    - `c:\BTR\OpenSource\tally\src\tally\templates.py`
    - `c:\BTR\OpenSource\tally\docs\reference.html`, `docs\guide.html`, and chart docs as needed.
-6. Account for PR #91 / issue #88 multi-category merchant work:
-   - PR #91 changes same-name merchants toward composite merchant identity by category/subcategory and fixes report chart aggregation to use per-transaction tags.
-   - The fixed-spending plan should not depend on old merchant-name-only grouping, because broad merchants like Amazon can have mixed fixed/variable transactions and mixed categories.
+6. Branch placement — this feature sits **above** `feature/merchant-composite-keys` in the stack:
+   - `feature/merchant-composite-keys` gives same-name merchants a composite identity by category/subcategory. `feature/ui-tweaks` (lower in the stack) already fixed chart aggregation to use per-transaction tags.
+   - This plan must not depend on merchant-name-only grouping, because broad merchants like Amazon have mixed fixed/variable transactions across mixed categories.
    - Fixed classification should operate at transaction/rule/group level, then aggregate for display.
-   - PR #91 / issue #88 is a hard prerequisite. Do not implement this fixed-spending feature until PR #91 lands or its changes are otherwise incorporated into the target branch.
-   - Do not make code changes for this feature before PR #91 lands, including `infer_fixed_spending` and temporary `fixed-budget` alias behavior. Pre-PR #91 work should stay limited to planning/docs unless explicitly revisited.
+   - **Hard prerequisite: composite merchant identity.** This is a semantic dependency, not a merge conflict — the audit is *wrong*, not merely conflicted, without it. Branch from `feature/merchant-composite-keys`, never from a lower rung.
+   - Accepted consequence: building on top welds `feature/merchant-composite-keys` into the stack — it can no longer be cheaply dropped or repositioned. That costs nothing real, since this feature cannot ship without it either way.
 7. Update tests:
    - Keep existing `fixed`/`variable` compatibility tests, then add tests for `infer_fixed_spending` true/false behavior.
    - Add tests for `fixed` compatibility and the new fixed-budget-average behavior if a new tag/mode is chosen.

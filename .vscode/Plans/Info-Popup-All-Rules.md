@@ -1,7 +1,5 @@
 ## Plan: Info Popup for all Rules
 
-HARD STOP: DO not implement this plan until user confirms issue88/PR91 has been merged.
-
 You are planning only. Do not implement code.
 
 Repository context:
