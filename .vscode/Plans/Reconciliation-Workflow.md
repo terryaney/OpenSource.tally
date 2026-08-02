@@ -68,6 +68,9 @@ The agent *applies* — edits `merchants.rules`, writes `CATEGORY:`/`TAG:` into 
 tagging column. Tally gets no rules-file writer. `newRule:` free-form prose is purely agent-side;
 tally emits the field and validates nothing.
 
+> **Revised during Phase 1 implementation (2026-08-01).** Five changes, all driven by what the
+> real-data run actually produced. See "Phase 1 revisions" at the end of this section.
+
 **File shape.** One row per transaction, flat top-level `unknowns:` list, **no grouping** —
 *the AI is the collapsing mechanism, not tally.* Natural-language batching ("all VIOC is oil
 change across all sources") beats tally-side grouping because it works across *different*
@@ -103,6 +106,45 @@ switchable off. Writes nothing when unknowns are zero. Tally prints one status l
 breakdown, because the `⚠ still unknown after apply` count is how failed-apply detection reaches
 the user without opening anything.
 
+### Phase 1 revisions (2026-08-01)
+
+**1. `hints:` split into a companion file.** Hints ran 4–8 lines per row and buried the fields the
+user actually fills in. They now live in `config/categorization.hints.yaml` — a machine-generated
+file correlated to the answer file by `key` (stable) and `id` (display order). Regenerated every
+run, safe to delete, no schema. `categorization.yaml` is now ~12 lines per row, all of them
+either identity or answer. `key` stays in the answer file: it is the join column the merge depends
+on, and a file the user has been told is disposable must never be load-bearing for their answers.
+
+**2. `state:` block replaces the bare `generated:` key.** Both files open with a collapsible
+`state:` carrying `generated`, `totalSources`, `totalUnknowns`, `totalReviews`. `totalSources`
+counts sources represented in the unknowns, not sources configured. `totalReviews` is always 0
+until Phase 2.
+
+**3. `edits.tags` emits `[]`, not blank.** `tags` is typed as an array in the schema, so a blank
+value loaded as `null` and the editor flagged every untouched row — reintroducing the exact
+squiggle `items.enum` was meant to remove.
+
+**4. `nearest` is merchant-level, and the matcher was fixed.** Two defects found on real data:
+
+- Matching only the whole description meant `Amazon.com*SR9ZH2VE3` scored 0.46 against `Amazon`
+  and fell below cutoff, so the hint never fired for 28 of 31 unique unknowns. Now the leading
+  name fragment is tried too, and a rule name appearing verbatim in the text scores 1.0.
+- difflib scored `amazon` against `salomon` at 0.615 — from the scattered fragments `'a'`, `'m'`,
+  `'on'` — putting a bogus Salomon suggestion on every Amazon row. Fuzzy matches now require one
+  contiguous run worth at least half the candidate. Measured over all 31 real descriptions: 29
+  improved, 0 regressed.
+
+Entries are now `{merchant, score, rules}` plus `useRule` only when `rules == 1`. Listing three of
+Amazon's 25 same-score variants implied a ranking that did not exist; naming the merchant and
+counting its variants is the honest signal. **`score` alone is never a sufficient gate** —
+`score: 1.0, rules: 25` is certain about the merchant and useless about the category.
+
+**5. Annotation is automatic for weak-hint rows.** The plan specified on-demand only. In practice
+the rows worth annotating are exactly the ones deterministic matching cannot resolve (`rules > 1`,
+or no `nearest` at all), so the skill annotates those automatically and leaves the rest alone.
+Thresholds are stated as tunable values in the skill. The zero-token path still exists — tally
+itself never calls an LLM, and `additionalInfo` is never written or overwritten by tally.
+
 > **No existing tally behavior changes.** `tally discover` keeps its current table output exactly
 > as-is. The constraint is only that this feature *adds* no new table/listing output and no new
 > listing command — if the user wants rows dumped in chat 15 at a time, the agent reads the YAML
@@ -110,7 +152,7 @@ the user without opening anything.
 
 **Review (Phase 2).** `review: true` is a bare boolean on a rule — no conditions; granularity
 lives in the rule's own `match:` (a Best-Buy-in-December rule carries the flag, the general Best
-Buy rule doesn't). Review rows surface for transactions in files not yet stamped `reviewedOn`,
+Buy rule doesn't). Review rows surface for transactions in files not yet stamped `reviewComplete`,
 and **persist indefinitely** — months and files later — until stamped. Resolution is file-level:
 leave a review row untouched and its existing rule stands.
 
@@ -181,19 +223,26 @@ files:
   - path: data/amazon-chase-visa-2026-Q2.CSV
     source: Amazon Chase Visa
     registered: 2026-07-31
-    reviewedOn: 2026-08-02
+    reviewComplete: true
 ```
+
+> **Revised 2026-08-01.** `reviewedOn` was a date; it is now the boolean
+> `reviewComplete`. The only question ever asked of the field is "is this done?", and a boolean
+> removes a genuine hazard: in YAML a bare `2026-08-02` loads as a `date` object while
+> `"2026-08-02"` loads as a string, so a hand-typed value behaved differently depending on
+> quoting. A non-boolean value is now a hard error. `registered:` stays a date — tally writes it,
+> not the user. Cost: no audit trail of *when* a file was confirmed. Accepted.
 That is the whole schema — no unknown-key tolerance, no extra fields. Tally auto-registers any
 data file it discovers that isn't already listed, and only ever appends entries. Hand-editable by
-design (clearing `reviewedOn` forces reprocessing after a CSV append), so it gets the same
+design (clearing `reviewComplete` forces reprocessing after a CSV append), so it gets the same
 hard-fail contract as `categorization.yaml`. Documented limitation: PyYAML does not preserve
 comments; `ruamel.yaml` deliberately not added.
 
-**`reviewedOn` is review-scoped only.** It must never gate parsing or analysis — every transaction
+**`reviewComplete` is review-scoped only.** It must never gate parsing or analysis — every transaction
 feeds `analyze_spending`'s aggregates (`analyzer.py:86-137`), so skipping stamped files would
 silently corrupt totals and monthly averages and blind `tally discover`.
 
-### Who stamps `reviewedOn`
+### Who stamps `reviewComplete`
 The agent or the user, by editing `config/inventory.yaml` directly. **No new tally command.** The
 user reviews the file, and if nothing needs changing tells the agent "I've reviewed all, they can
 stay as matched" — the agent writes the date. Until then review rows keep appearing, indefinitely.
@@ -216,6 +265,31 @@ instead of `tally/data/inventory.yaml`, and no longer writes rows (tally registe
 
 ---
 
+### Phase 2 implementation notes (2026-08-01)
+
+Built as specified. Three details the plan left open, resolved during implementation:
+
+**Review rows live in a separate top-level `reviews:` list**, not mixed into `unknowns:`. They
+carry `currently:` (how the transaction is categorized right now — what stands if you do nothing)
+and `file:` (which data file to stamp), plus the same answer fields as an unknown row. **Ids
+continue the same sequence as `unknowns:`**, so "process 37" is unambiguous across both lists.
+
+**`review` is threaded through `match_info['review']`**, set to true when *any* matching rule
+carries the flag — so a tag-only rule can request review just as a categorization rule can.
+Verified safe: `analyzer.py` and `report.py` both read `match_info` through explicit `.get()`
+calls into new dicts, so the added key cannot leak into the HTML report or JSON export.
+
+**`_add_rule` had to be updated too.** Parsing `review:` was not enough — `MerchantRule` is
+constructed with explicit keyword arguments, so the value was silently dropped until `_add_rule`
+passed it through. A test caught this; without one the feature would have parsed cleanly and
+never worked.
+
+Rule-engine risk was contained as required: `tests/test_rule_snapshots.py` passes, the parser's
+hard-failure on unknown properties is unchanged (verified by a test asserting `reviewed:` still
+raises), and `review:` defaults to `False` so every existing rules file behaves identically.
+`rule_cache.py` was left alone — it is referenced only by its own test, so no production path
+reconstructs rules from the cache where a new property could be dropped.
+
 ## Verification
 
 **Tests** (`tests/test_analyzer.py`, plus a new `tests/test_categorization.py`):
@@ -225,7 +299,7 @@ instead of `tally/data/inventory.yaml`, and no longer writes rows (tally registe
 - Malformed YAML: file untouched, HTML still written, non-zero exit, error names line/column
 - Zero unknowns writes no file; disabled setting prints nothing
 - Schema: `$ref` resolves, no `""` in enums, every property has `description`
-- Phase 2: `review: true` parses; `reviewedOn` gates review rows but never aggregates; review rows
+- Phase 2: `review: true` parses; `reviewComplete` gates review rows but never aggregates; review rows
   persist across multiple `tally up` runs until stamped
 - **`tests/test_rule_snapshots.py` must pass** before any `merchant_engine.py` commit
 

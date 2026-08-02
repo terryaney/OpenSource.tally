@@ -14,7 +14,8 @@ Row order = stack order, bottom to top. Each rung's base is the row above it.
 | 2 | `feature/globbing-documentation` | rung 1 | | Docs + tests only |
 | 3 | `feature/ui-tweaks` | rung 2 | | Authored against string-keyed merchants — independent of rung 5 |
 | 4 | `feature/charts-reimagined` | rung 3 | | |
-| 5 | `feature/merchant-composite-keys` | rung 4 | | Stack tip. Composite merchant keys; opaque `merchant_<b64>` row IDs. Changes merchant identity, so it is the rung most likely to draw objection — deliberately placed last, where rejection costs no restacking. |
+| 5 | `feature/merchant-composite-keys` | rung 4 | | |
+| 6 | `feature/categorization` | rung 5 | | |
 
 **Contrib branches in play:** none. *(`contrib/*` branches merge into `feature/experimental` only and are never rungs — they have no base in the stack, so they are tracked here rather than as table rows. A rebuild must replay every one listed.)*
 
@@ -27,11 +28,12 @@ Row order = stack order, bottom to top. Each rung's base is the row above it.
 ```
 main (based on upstream/main)
  │
- ├── feature/workflow-node24                    rung 1
- │     └── feature/globbing-documentation       rung 2
- │           └── feature/ui-tweaks              rung 3
- │                 └── feature/charts-reimagined rung 4
- │                       └── feature/merchant-composite-keys  rung 5  ← stack tip
+ ├── feature/workflow-node24                    				rung 1
+ │     └── feature/globbing-documentation       				rung 2
+ │           └── feature/ui-tweaks              				rung 3
+ │                 └── feature/charts-reimagined 				rung 4
+ │                       └── feature/merchant-composite-keys  	rung 5
+ │                             └── feature/categorization       rung 6  ← stack tip
  │
  ├── feature/experimental = main
  │                        + fork-identity commit
