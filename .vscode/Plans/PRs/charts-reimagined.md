@@ -11,9 +11,18 @@ This PR reimagines the KPI and chart experience in the HTML spending report whil
 7. KPI compatibility hooks restored for report_html test selectors used by existing tests
 8. Post-hook KPI behavior hardening (anchor month and sparkline/trend correctness)
 9. KPI detail-row math reconciliation so trend baseline and displayed 12-month average align
+10. Spending by Category chart is now a filter surface: legend chips are tri-state (regular / selected / not-selected) instead of show/hide, and clicking a bar segment drills into that category plus that bucket's date range
+11. Chart-driven filters are transient "peek" state — surfaced by a Peek Mode badge and a Clear Filters button, not persisted to the URL hash, and dropped as soon as the user adds a filter by hand
+12. Top 10 Fixed is ranked by monthly cost rather than alphabetically
 
 **Review Guide**
 
 <img alt="image" src="https://github.com/user-attachments/assets/ff28116f-021a-4bf6-8fde-12bef973783e" />
 
 Please use [charts.html](https://htmlpreview.github.io/?https://raw.githubusercontent.com/terryaney/OpenSource.tally/refs/heads/feature/charts-reimagined/docs/charts.html) as the primary feature walkthrough instead of reproducing all details in this PR body.  That page documents the chart/KPI behavior and intent implemented on this branch.
+
+Three pieces of `spending_report.js` are worth reading closely, since the rest follows from them:
+
+- `categoryExemptAggregations` / `passesFilters(txn, merchant, { skipCategory })` — the Spending by Category chart sources its bars from an aggregation that ignores *include*-mode category filters, so selecting a category dims its peers rather than deleting them from the canvas. Exclude-mode category filters still apply.
+- `toggleCategoryChip` / `applyCategorySelection` — `activeFilters` is the single source of truth for chip state; there is no separate hidden-set anymore. All-on and all-off both collapse back to "no category filter".
+- `applyCategoryChartFastVisibility` — a chip toggle flips dataset visibility on the live Chart instance instead of destroying and rebuilding it, to avoid reanimating on every click. It bails to a full rebuild if the dataset list no longer matches the chip list.

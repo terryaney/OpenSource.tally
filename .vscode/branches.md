@@ -136,13 +136,16 @@ git push --force-with-lease origin <tip>        # only if it has an open PR
 
 Every rung above must be replayed onto your edit. One `--update-refs` run does all of them.
 
-**1. Record the tip.** `--update-refs` overwrites every rung ref in one pass, so there is no "before" afterwards unless you captured it now.
+**1. Record the tip — and `<rung>` itself.** `--update-refs` overwrites every rung ref in one pass, so there is no "before" afterwards unless you captured it now. `<rung>`'s own hash is only needed by the amend variant below, but an amend destroys it too — capture both and throw one away.
 
 ```powershell
 git rev-parse --short <tip>                     # write this down
+git rev-parse --short <rung>                    # <rung-before> — write this down too
 ```
 
-**2. Edit and replay.**
+**2. Edit and replay.** Which command you use depends on whether you **added** a commit or **amended** the existing one. `<rung>` is where you committed; `<tip>` tells the rebase how far up to replay. Every rung between them moves too.
+
+**2a. You added a commit.** The rung's old tip is still an ancestor of your new one, so `<rung>..<tip>` contains only the rungs above:
 
 ```powershell
 git checkout <rung>
@@ -150,7 +153,19 @@ git checkout <rung>
 git rebase --update-refs <rung> <tip>
 ```
 
-`<rung>` is where you committed; `<tip>` tells the rebase how far up to replay. Every rung between them moves too.
+**2b. You amended the rung's last commit.** The pre-amend commit is *still an ancestor of `<tip>`* — nothing above has been replayed yet — so `<rung>..<tip>` still contains it. The 2a command would replay the **pre-amend** version on top of the **post-amend** one; patch-id dedupe can't drop it, because the amend is exactly what changed its content. Use `--onto` to separate where the replay lands from where it starts:
+
+```powershell
+git checkout <rung>
+# ...commit --amend...
+git rebase --update-refs --onto <rung> <rung-before> <tip>
+```
+
+Same shape as the *rejected* play's step 2: `--onto <lands here> <starts here, exclusive> <replays up to here>`.
+
+> **⚠ Symptom you reached for 2a on an amend:** the rebase stops with `could not apply <old-hash>... <the commit message you just rewrote>`, conflicting in every file the amend touched. That is the old commit being replayed onto its own replacement. `git rebase --abort` and re-run with 2b — nothing is lost, and the abort restores every ref.
+>
+> Reading the conflict as real and resolving it is the trap: you would be hand-merging two versions of your own commit, and the result is whatever survives that merge rather than what you amended to.
 
 **3. Verify — `<tip>` only.** The base of this replay is your own edit, so you already know what should have changed.
 
@@ -173,12 +188,16 @@ git push origin feature/experimental
 
 Rungs *below* `<rung>` did not move — do not push them.
 
-> **Worked example — editing rung 3 of 5.** `<rung>` = `feature/ui-tweaks`, `<tip>` = `feature/merchant-composite-keys`.
+> **Worked example — 2a, adding a commit to rung 3 of 5.** `<rung>` = `feature/ui-tweaks`, `<tip>` = `feature/merchant-composite-keys`.
 > Rung 3 moves when you **commit** to it in step 2. `git rebase --update-refs feature/ui-tweaks feature/merchant-composite-keys` then replays rungs 4 and 5 onto it and moves those two refs. Rungs 1–2 are untouched. Step 4 pushes rungs 3, 4 and 5.
+
+> **Worked example — 2b, amending rung 4 of 6.** `<rung>` = `feature/charts-reimagined`, `<rung-before>` = `2477dea`, `<tip>` = `feature/categorization`.
+> After `git commit --amend`, rung 4 points at the new commit but rungs 5 and 6 still descend from `2477dea`. `git rebase --update-refs --onto feature/charts-reimagined 2477dea feature/categorization` replays rungs 5 and 6 — `2477dea` itself excluded — onto the amended commit and moves both refs. Rung 4's ref is the `--onto` target, so `--update-refs` leaves it alone. Rungs 1–3 are untouched.
+> Running 2a here instead (`git rebase --update-refs feature/charts-reimagined feature/categorization`) puts `2477dea` back in the range and conflicts immediately — this is the mistake the ⚠ above describes, and it has actually happened.
 
 > **🤖 Work with AI Agent if...**
 > - Step 3's diff has lines you can't account for. Hand over *that diff*, **before** the force-push.
-> - `--update-refs` stops with conflict markers. Hand over the conflict plus which two rungs are involved — the resolution belongs in the upper rung.
+> - `--update-refs` stops with conflict markers. Hand over the conflict plus which two rungs are involved — the resolution belongs in the upper rung. **Include the `could not apply <hash>... <subject>` line** — if that subject is a commit you just amended, the answer is the 2a/2b mix-up, not a real conflict.
 > - The merge into `feature/experimental` is clean but `pytest` fails. That means the rung itself is wrong. Fix it in the rung and re-run from step 2.
 
 ### Test a local build without committing
