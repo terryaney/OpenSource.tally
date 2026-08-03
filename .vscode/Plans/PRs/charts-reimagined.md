@@ -1,3 +1,6 @@
+> **Stacked on [`feature/ui-tweaks`](https://github.com/terryaney/OpenSource.tally/tree/feature/ui-tweaks) — PR #TBD.** Please merge that one first (and the two it sits on).
+> **This layer only:** [`feature/ui-tweaks...feature/charts-reimagined`](https://github.com/terryaney/OpenSource.tally/compare/feature/ui-tweaks...feature/charts-reimagined)
+
 This PR reimagines the KPI and chart experience in the HTML spending report while preserving the same core budgeting and analysis intent.
 
 **Features / Changes**
@@ -26,3 +29,12 @@ Three pieces of `spending_report.js` are worth reading closely, since the rest f
 - `categoryExemptAggregations` / `passesFilters(txn, merchant, { skipCategory })` — the Spending by Category chart sources its bars from an aggregation that ignores *include*-mode category filters, so selecting a category dims its peers rather than deleting them from the canvas. Exclude-mode category filters still apply.
 - `toggleCategoryChip` / `applyCategorySelection` — `activeFilters` is the single source of truth for chip state; there is no separate hidden-set anymore. All-on and all-off both collapse back to "no category filter".
 - `applyCategoryChartFastVisibility` — a chip toggle flips dataset visibility on the live Chart instance instead of destroying and rebuilding it, to avoid reanimating on every click. It bails to a full rebuild if the dataset list no longer matches the chip list.
+
+## Coming next (not in this PR)
+
+Each is based on the one above it, so they want merging in this order:
+
+1. [`feature/merchant-composite-keys`](https://github.com/terryaney/OpenSource.tally/compare/feature/charts-reimagined...feature/merchant-composite-keys) — PR #TBD — composite merchant identity so one merchant can carry multiple categorizations
+2. [`feature/categorization`](https://github.com/terryaney/OpenSource.tally/compare/feature/merchant-composite-keys...feature/categorization) — PR #TBD — categorization review file, `review:` rule flag, `inventory.yaml`
+
+Separately, [`feature/ci-repair`](https://github.com/terryaney/OpenSource.tally/compare/main...feature/ci-repair) — PR #TBD — is independent of this stack: `.github/workflows/` only.

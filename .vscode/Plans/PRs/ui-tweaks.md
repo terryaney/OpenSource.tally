@@ -1,3 +1,6 @@
+> **Stacked on [`feature/report-json-determinism`](https://github.com/terryaney/OpenSource.tally/tree/feature/report-json-determinism) — PR #TBD.** Please merge that one first (and the one it sits on).
+> **This layer only:** [`feature/report-json-determinism...feature/ui-tweaks`](https://github.com/terryaney/OpenSource.tally/compare/feature/report-json-determinism...feature/ui-tweaks)
+
 This PR improves the generated HTML spending report across correctness, navigation, and daily usability. 
 
 **There was one headline fix to data correctness**: report-side charts, Filtered View totals, and Section View percentages now classify each transaction by its own tags instead of using a merchant-wide tag union. 
@@ -85,3 +88,13 @@ The underlying month source was also corrected. Available months now come from `
 **Rule provenance popups now show the actual rule path more clearly.**
 
 <img alt="image" src="https://github.com/user-attachments/assets/9246e05c-3c2d-4e44-8cab-13a6a4cc4b5b" />
+
+## Coming next (not in this PR)
+
+Each is based on the one above it, so they want merging in this order:
+
+1. [`feature/charts-reimagined`](https://github.com/terryaney/OpenSource.tally/compare/feature/ui-tweaks...feature/charts-reimagined) — PR #TBD — reimagined chart layout, KPI tiles, chart docs
+2. [`feature/merchant-composite-keys`](https://github.com/terryaney/OpenSource.tally/compare/feature/charts-reimagined...feature/merchant-composite-keys) — PR #TBD — composite merchant identity so one merchant can carry multiple categorizations
+3. [`feature/categorization`](https://github.com/terryaney/OpenSource.tally/compare/feature/merchant-composite-keys...feature/categorization) — PR #TBD — categorization review file, `review:` rule flag, `inventory.yaml`
+
+Separately, [`feature/ci-repair`](https://github.com/terryaney/OpenSource.tally/compare/main...feature/ci-repair) — PR #TBD — is independent of this stack: `.github/workflows/` only.

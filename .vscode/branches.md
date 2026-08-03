@@ -10,14 +10,32 @@ Row order = stack order, bottom to top. Each rung's base is the row above it.
 
 | # | Branch | Base | Upstream PR | Notes |
 |---|--------|------|-------------|-------|
-| 1 | `feature/workflow-node24` | `main` | *(next to submit)* | Action version bumps + `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24`. Fixes upstream's broken `build` job — genuinely useful to David, smallest possible diff. |
-| 2 | `feature/globbing-documentation` | rung 1 | | Docs + tests only |
+| 1 | `feature/globbing-documentation` | `main` | | Docs + tests only |
+| 2 | `feature/report-json-determinism` | rung 1 | | Pure Python; two one-line fixes + tests. Owns the `source_names` line — rung 3 deliberately does not touch it |
 | 3 | `feature/ui-tweaks` | rung 2 | | Authored against string-keyed merchants — independent of rung 5 |
 | 4 | `feature/charts-reimagined` | rung 3 | | |
 | 5 | `feature/merchant-composite-keys` | rung 4 | | |
 | 6 | `feature/categorization` | rung 5 | | |
 
+**Independent branches in play:** `feature/ci-repair` — *(next to submit)*. Two commits: Node 24 action bumps, and the `pull_request_target` fork-checkout fix that has had `PR Build` red for every fork PR since 2026-07-20 (see PR #95). Workflow YAML only.
+
 **Contrib branches in play:** none. *(`contrib/*` branches merge into `feature/experimental` only and are never rungs — they have no base in the stack, so they are tracked here rather than as table rows. A rebuild must replay every one listed.)*
+
+### Independent branches
+
+A branch sits **off `main` rather than on a rung** when it shares no file with any rung. Then, and only then, it costs nothing: its PR is a clean `main...<branch>` with no dependency line, it can be submitted in any order, and rejecting it restacks nothing.
+
+Prove it before you claim it — conceptual independence is not the test, **file overlap is**:
+
+```powershell
+git diff <rung-below> <branch> --name-only        # this branch's files
+git diff main <tip> --name-only                   # everything the stack touches
+#   -> any name in both means it belongs in the stack, not beside it
+```
+
+Two rungs that touch the same file are ordered *by the stack*: when the lower one merges upstream, the content reaches the upper one through `main` on the next restack. Pulling such a branch out doesn't remove the overlap — it moves the collision from a rebase you control to a merge you don't.
+
+Like `contrib/*`, an independent branch is tracked on the line above rather than as a table row, and **must be merged into `feature/experimental` separately** — a rebuild drops it otherwise.
 
 > **Renaming is free** as long as no PR is open from the branch. Once a PR is open, its head branch cannot be renamed without closing the PR — so rename *before* you submit, never after.
 
@@ -28,24 +46,27 @@ Row order = stack order, bottom to top. Each rung's base is the row above it.
 ```
 main (based on upstream/main)
  │
- ├── feature/workflow-node24                    				rung 1
- │     └── feature/globbing-documentation       				rung 2
- │           └── feature/ui-tweaks              				rung 3
- │                 └── feature/charts-reimagined 				rung 4
- │                       └── feature/merchant-composite-keys  	rung 5
- │                             └── feature/categorization       rung 6  ← stack tip
+ ├── feature/globbing-documentation                   					rung 1
+ │     └── feature/report-json-determinism            					rung 2
+ │           └── feature/ui-tweaks                    					rung 3
+ │                 └── feature/charts-reimagined      					rung 4
+ │                       └── feature/merchant-composite-keys 			rung 5
+ │                             └── feature/categorization   			rung 6  ← stack tip
+ │
+ ├── feature/ci-repair                                					independent (shares no file with any rung)
  │
  ├── feature/experimental = main
  │                        + fork-identity commit
  │                        + merge(stack tip)
+ │                        + merge(each independent branch)
  │
  └── playbook  (notes, plans, prototypes; merges nowhere)
 ```
 
 Three rules the whole document follows from:
 
-1. **Every feature branch is based on the rung below it**, never on `main`.
-2. **`feature/experimental` is `main` + one fork-identity commit + a merge of the stack tip.** The only other thing ever merged into it is a `contrib/*` branch — see *Include someone else's upstream PR or branch*.
+1. **Every feature branch is based on the rung below it**, never on `main` — *unless it shares no file with any rung*, in which case it sits beside the stack. See *Independent branches*.
+2. **`feature/experimental` is `main` + one fork-identity commit + a merge of the stack tip.** The only other things ever merged into it are `contrib/*` and independent branches — see *Include someone else's upstream PR or branch* and *Independent branches*.
 3. **PRs are submitted bottom-up**, each declaring the rung it sits on. Batch them as much as possible given frequency upstream reviews; do not serialize.
 
 ---
@@ -60,7 +81,7 @@ Two rules for those handoffs, everywhere they appear: hand over the **specific c
 
 | Placeholder | Means | Today |
 |---|---|---|
-| `<tip>` | top rung of the stack | `feature/merchant-composite-keys` |
+| `<tip>` | top rung of the stack | `feature/categorization` |
 | `<rung>` | the rung you are acting on | any row |
 | `<rung-below>` | the row directly above it in the inventory (its base) | — |
 | `<rung-above>` | the row directly below it in the inventory | — |
@@ -139,7 +160,7 @@ Every rung above must be replayed onto your edit. One `--update-refs` run does a
 **1. Record the tip — and `<rung>` itself.** `--update-refs` overwrites every rung ref in one pass, so there is no "before" afterwards unless you captured it now. `<rung>`'s own hash is only needed by the amend variant below, but an amend destroys it too — capture both and throw one away.
 
 ```powershell
-git rev-parse --short <tip>                     # write this down
+git rev-parse --short <tip>                     # <recorded-tip> - write this down
 git rev-parse --short <rung>                    # <rung-before> — write this down too
 ```
 
@@ -179,21 +200,27 @@ git diff <recorded-tip> <tip> --stat
 **4. Absorb and push.**
 
 ```powershell
-git push --force-with-lease origin <every rung from `<rung>` up to `<tip>` that has an open PR>
-git checkout feature/experimental
+git push --force-with-lease origin <every rung from `<rung>` up to `<tip>` that exists on origin>
+git checkout -B feature/experimental fork-identity   # step 2 rebased, so this is a REBUILD, not a merge
+                                                     # -> see Rebuild feature/experimental
 git merge <tip>
+git merge <each independent branch>                  # see the inventory line
+git merge --no-ff <each contrib/* still in play>     # rare; usually none - see the inventory line
 uv run pytest tests/ --tb=no -q
-git push origin feature/experimental
+git push --force-with-lease origin feature/experimental
 ```
 
 Rungs *below* `<rung>` did not move — do not push them.
 
-> **Worked example — 2a, adding a commit to rung 3 of 5.** `<rung>` = `feature/ui-tweaks`, `<tip>` = `feature/merchant-composite-keys`.
-> Rung 3 moves when you **commit** to it in step 2. `git rebase --update-refs feature/ui-tweaks feature/merchant-composite-keys` then replays rungs 4 and 5 onto it and moves those two refs. Rungs 1–2 are untouched. Step 4 pushes rungs 3, 4 and 5.
+**The push predicate is "exists on origin," not "has an open PR."** Those came apart the moment a rung was pushed before being submitted. For a rung that is *not* on origin, `--force-with-lease` does not correct a stale remote — it **publishes a branch you had not chosen to publish**. Check rather than remember:
 
-> **Worked example — 2b, amending rung 4 of 6.** `<rung>` = `feature/charts-reimagined`, `<rung-before>` = `2477dea`, `<tip>` = `feature/categorization`.
-> After `git commit --amend`, rung 4 points at the new commit but rungs 5 and 6 still descend from `2477dea`. `git rebase --update-refs --onto feature/charts-reimagined 2477dea feature/categorization` replays rungs 5 and 6 — `2477dea` itself excluded — onto the amended commit and moves both refs. Rung 4's ref is the `--onto` target, so `--update-refs` leaves it alone. Rungs 1–3 are untouched.
-> Running 2a here instead (`git rebase --update-refs feature/charts-reimagined feature/categorization`) puts `2477dea` back in the range and conflicts immediately — this is the mistake the ⚠ above describes, and it has actually happened.
+```powershell
+git ls-remote --heads origin
+```
+
+> **⚠ Step 2 always rebases, so `feature/experimental` always needs rebuilding — never `git merge <tip>` into the existing branch here.** It dedupes by content so it looks like it worked, but the pre-rebase copy of every rung stays in the history and the next rebuild inherits the mess. `checkout -B ... fork-identity` re-derives it instead.
+>
+> Use `checkout -B`, not `git reset --hard <hash>`: it resolves the tag rather than a hash you have to look up, and it names the branch, so a failed `git checkout` on the line above cannot redirect the reset onto whatever branch you were actually standing on.
 
 > **🤖 Work with AI Agent if...**
 > - Step 3's diff has lines you can't account for. Hand over *that diff*, **before** the force-push.
@@ -595,21 +622,18 @@ Then [rebuild `feature/experimental`](#rebuild-featureexperimental) — the rung
 
 ## Rebuild feature/experimental
 
-`feature/experimental` is `main` + the `fork:` commit + a merge of the stack tip. When a rebase rewrites rung SHAs, the branch is holding commits that no longer exist — so you throw it away and re-derive it. Two commands, because the `fork:` commit sits directly on `main` and is tagged `fork-identity`.
-
-**Safety net first**, if this rebuild is at all risky — the first command below clobbers the ref, so there is no undo afterwards:
-
-```powershell
-git branch experimental-old feature/experimental      # delete once tests pass
-```
+`feature/experimental` is `main` + the `fork-identity` commit + a merge of the stack tip. When a rebase rewrites rung SHAs, the branch is holding commits that no longer exist — so you throw it away and re-derive it. Two commands, because the `fork-identity` commit sits directly on `main` and is tagged `fork-identity`.
 
 ```powershell
 git checkout -B feature/experimental fork-identity
 git merge <tip>
+git merge <each independent branch>                         # see the inventory line
 git merge --no-ff <each contrib/* branch still in play>     # rare; usually none
 uv run pytest tests/ --tb=no -q
 git push --force-with-lease origin feature/experimental
 ```
+
+> **The independent-branch merges are not optional.** A rebuild re-derives from `fork-identity` and knows nothing about them, so anything left out silently disappears from the build branch. `feature/ci-repair` carries the workflow changes that `Experimental Build` itself runs on — drop it and you stop testing them.
 
 **When you need this — only after a rebase.** These rewrite rung SHAs:
 
@@ -627,25 +651,25 @@ For the "no" rows, just `git merge <branch>` into `feature/experimental` — no 
 
 **Never `git merge <tip>` into the *existing* branch after a rebase.** It dedupes by content so it looks like it worked, but both the old and new copies of every rung stay in the history and the next rebuild inherits the mess. Re-derive from the tag instead.
 
-**Only two things may live on `feature/experimental` alone:** the `fork:` commit and any `contrib/*` merges. Both halves need checking before you discard the branch — `--no-merges` hides merges, so it cannot see the second half:
+**Only two things may live on `feature/experimental` alone:** the `fork-identity` commit, and merges of `contrib/*` or independent branches. Both halves need checking before you discard the branch — `--no-merges` hides merges, so it cannot see the second half:
 
 ```powershell
 git log main..feature/experimental --no-merges --oneline
-#   → rung commits + exactly one `fork:` commit, nothing else
+#   → rung commits + independent-branch commits + exactly one `fork-identity` commit, nothing else
 
 git log main..feature/experimental --merges --oneline
-#   → one merge per absorb since the last rebuild, plus one per contrib/* branch
+#   → one merge per absorb since the last rebuild, plus one per independent and contrib/* branch
 ```
 
 Anything extra in the first list is work committed to the wrong branch — move it to a rung before rebuilding, or you lose it.
 
-**The second list is normally several merges, not one.** Every *New feature* and *Editing `<tip>`* absorb adds another merge of the stack tip; they accumulate until the next rebuild collapses them to one. What you are looking for is a merge that is neither a stack-tip merge nor a `contrib/*` merge — that is something absorbed into the build branch that shouldn't have been. Note every `contrib/*` merge you find; the rebuild command above has to replay each one.
+**The second list is normally several merges, not one.** Every *New feature* and *Editing `<tip>`* absorb adds another merge of the stack tip; they accumulate until the next rebuild collapses them to one. What you are looking for is a merge that is none of stack-tip, independent, or `contrib/*` — that is something absorbed into the build branch that shouldn't have been. Note every independent and `contrib/*` merge you find; the rebuild command above has to replay each one.
 
 
 > **🤖 Work with AI Agent if...**
-> - Either `git log main..feature/experimental` listing turns up something unexpected — a commit that is neither a rung commit nor the `fork:` commit, or a merge that is neither `<tip>` nor a `contrib/*`. Hand over that list *before* rebuilding; the rebuild discards whatever it is.
-> - `git merge <tip>` conflicts against the `fork:` commit. It shouldn't; the only overlap is `dev-build.yml`, and it is conflict-free as long as the `build-rc`/`rc-artifacts` naming stayed upstream's. A conflict there means that rename crept back in.
-> - `fork-identity` doesn't resolve. Find it with `git log --oneline --grep='^fork:' feature/experimental` and re-tag before rebuilding.
+> - Either `git log main..feature/experimental` listing turns up something unexpected — a commit that is neither a rung commit nor the `fork-identity` commit, or a merge that is neither `<tip>` nor a `contrib/*`. Hand over that list *before* rebuilding; the rebuild discards whatever it is.
+> - `git merge <tip>` conflicts against the `fork-identity` commit. It shouldn't; the only overlap is `dev-build.yml`, and it is conflict-free as long as the `build-rc`/`rc-artifacts` naming stayed upstream's. A conflict there means that rename crept back in.
+> - `fork-identity` doesn't resolve. Find it with `git log --oneline --grep='Foundational Commit' feature/experimental` and re-tag before rebuilding.
 
 ## When to abandon upstream
 
@@ -719,11 +743,17 @@ git fetch origin --tags
 git tag -l fork-identity                     # must print; Rebuild feature/experimental depends on it
 ```
 
-If `fork-identity` is missing, recreate and push it so the next clone has it:
+If `fork-identity` is missing, recreate and push it so the next clone has it. The commit's subject is **`Foundational Commit for my fork`** — match on that, not on a `fork:` prefix, which nothing in this repo uses:
 
 ```powershell
-git tag fork-identity $(git log --format='%H' --grep='^fork:' feature/experimental | Select-Object -Last 1)
+git tag fork-identity $(git log --format='%H' --grep='Foundational Commit' feature/experimental | Select-Object -Last 1)
 git push origin fork-identity
+```
+
+Verify before relying on it — an empty `$(...)` silently tags `HEAD`, which is the wrong commit and looks fine:
+
+```powershell
+git log -1 --format='%h %s' fork-identity     # must print the Foundational Commit
 ```
 
 `C:\BTR\Extensibility\Tally.code-workspace` and `.claude/settings.local.json` (which grants agents access to `../tally-playbook/` via `permissions.additionalDirectories`) are also untracked — recreate or restore them from backup.

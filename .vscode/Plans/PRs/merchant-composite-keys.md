@@ -1,3 +1,6 @@
+> **Stacked on [`feature/charts-reimagined`](https://github.com/terryaney/OpenSource.tally/tree/feature/charts-reimagined) — PR #TBD.** Please merge that one first (and the three it sits on).
+> **This layer only:** [`feature/charts-reimagined...feature/merchant-composite-keys`](https://github.com/terryaney/OpenSource.tally/compare/feature/charts-reimagined...feature/merchant-composite-keys)
+
 Fixes #88 allowing merchants to different categorization rules with same name.
 
 Instead of requiring:
@@ -50,3 +53,9 @@ for (const txn of merchant.filteredTxns || []) {
 ```
 
 Each individual transaction already carries its own `tags` array in the report JSON (e.g., `{"id": "...", "date": "06/22", "amount": 33.51, "tags": ["monthly-bill"]}`), so the data is available.
+
+## Coming next (not in this PR)
+
+1. [`feature/categorization`](https://github.com/terryaney/OpenSource.tally/compare/feature/merchant-composite-keys...feature/categorization) — PR #TBD — categorization review file, `review:` rule flag, `inventory.yaml`
+
+Separately, [`feature/ci-repair`](https://github.com/terryaney/OpenSource.tally/compare/main...feature/ci-repair) — PR #TBD — is independent of this stack: `.github/workflows/` only.
