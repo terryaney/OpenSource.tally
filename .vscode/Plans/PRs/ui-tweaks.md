@@ -1,100 +1,59 @@
-> **Stacked on [`feature/report-json-determinism`](https://github.com/terryaney/OpenSource.tally/tree/feature/report-json-determinism) — PR #TBD.** Please merge that one first (and the one it sits on).
+Title: Date filtering, transaction details, and per-transaction tag classification [3/6]
+
+> **[3/6]** Based on `feature/report-json-determinism` (#99).
+> Merging this PR into `main` also lands #98 and #99 if not already merged.
 > **This layer only:** [`feature/report-json-determinism...feature/ui-tweaks`](https://github.com/terryaney/OpenSource.tally/compare/feature/report-json-determinism...feature/ui-tweaks)
 
-This PR improves the generated HTML spending report across correctness, navigation, and daily usability. 
+This PR fixes a data correctness bug in the HTML report and adds date filtering, transaction details, and layout polish.
 
-**There was one headline fix to data correctness**: report-side charts, Filtered View totals, and Section View percentages now classify each transaction by its own tags instead of using a merchant-wide tag union. 
+Screenshots below are from simulated data — visual reference only.
 
-**Mobile View Note**: Given this is a locally generated html file, I feel the vast majority of users will be desktop/large display.  There were several pre-existing mobile issues that I plan to address later.
+## Data Correctness Fix
 
-**Screenshots**: generated from simulated data so can't guarantee the math is correct, purely for visual reference.
-
-## At a Glance
-
-- Corrected chart/KPI classification for mixed-tag merchants
-- Corrected Section View percentage using per-transaction spending totals.
-- Added Month / Quarter / Year / Custom date filtering with URL hash restoration.
-- Renamed some charts, added a top 10 +other pattern, chart click for visibility instead of filtering
-- Added a collapsible Transaction Details container with sticky headers, pinned totals, etc.
-- Persisted report layout preferences in `localStorage`, with a reset control.
-- Improved transaction row layout, column sizing, and rule provenance popups.
-- Rule popups received several explainability and layout improvements.
-- Config and Documentation Changes
-  - Added `report_fields` configuration so captured fields like memo can appear in report details without per-rule passthroughs
-    - Starter settings include `report_fields: [memo]`.
-    - Removed phantom `+1 Memo` indicators.
-    - `report_fields` can be configured globally or per source.
-  - Starter title is now `Tally Spending Analysis`.
-  - `config/settings.yaml.example` includes the new report field setting.
-
-## Important Data Correctness Fixes
-
-### Transaction tags now drive chart and KPI classification
-
-Previously, the JavaScript report classified transactions using `merchant.tags`, which is the union of tags across all transactions for a merchant. That meant one `income`, `transfer`, `refund`, or `investment` transaction could cause unrelated transactions at the same merchant to be classified incorrectly. This PR changes the rendered report paths to classify with each transaction's own `txn.tags`, matching the Python-side KPI logic.
-
-Affected report surfaces:
-- Filtered View KPI tile
-- Cash Flow Trend
-- Spending by Category
-- Spending by Category Trend
-
-**This is the strongest correctness story in the PR. It shows that the report is not just visually improved; the numbers shown in the browser now match the underlying analysis.**
-
-**Default report totals now reconcile with Python-computed KPIs.**  
+Charts, Filtered View totals, and Section View percentages previously classified transactions using `merchant.tags` (the union across all transactions for that merchant). One `income` or `transfer` transaction could misclassify every other transaction at the same merchant. This PR switches to per-transaction `txn.tags`, matching the Python-side KPI logic.
 
 <img width="1121" height="1233" alt="image" src="https://github.com/user-attachments/assets/bdb17498-7aa4-437c-8dce-e9d473971a0a" />
 
-### Section View percentages now use the correct spending denominator
+## Changes
 
-Section View percentages previously depended on whole-merchant include/exclude decisions derived from merchant tag unions. In mixed-tag datasets, that could drop ordinary spending from the denominator.  The rendered Section View denominator now comes from `filteredViewTotals.value.spending`, which is already calculated per transaction.
-
-## Loading and Mount Polish
-
-The generated report now shows a clean loading shell while Vue mounts. This hides uninitialized template content and gives the page a progress indicator during startup.
-
-**Report shows a clean loading state while the app initializes.**
-
-<img alt="image" src="https://github.com/user-attachments/assets/98497684-afab-4160-b93e-7162d10ec0d3" />
+- Per-transaction tag classification for charts, Filtered View, and Section View percentages
+- Month / Quarter / Year / Custom date filtering with URL hash persistence
+- Collapsible Transaction Details with sticky headers and pinned totals
+- Loading shell while Vue mounts
+- `report_fields` config so captured fields like memo appear without per-rule passthroughs
+- Layout preferences persisted in `localStorage` with a reset control
+- Rule provenance popup improvements
+- Starter title changed to `Tally Spending Analysis`
 
 ## Date Filtering
 
-The date filter changed from a single month dropdown into an interactive popover with multiple date selection modes.
-
-### Date filtering now supports months, quarters, years, and custom ranges in one popover.
-
 <img alt="image" src="https://github.com/user-attachments/assets/b87f9eee-a2be-44f8-a596-86e95fb6291d" />
-
-### Selected months aggregate into concise quarter/year chips, while custom ranges stay day-precise
 
 <img alt="image" src="https://github.com/user-attachments/assets/11b901a3-2e04-49b8-9e29-8fde1590c6ea" />
 
-The underlying month source was also corrected. Available months now come from `categoryView`, so a month is not lost just because its merchant was excluded from every configured view.
+## Loading State
+
+<img alt="image" src="https://github.com/user-attachments/assets/98497684-afab-4160-b93e-7162d10ec0d3" />
 
 ## Transaction Details
 
-**Transaction Details are now contained, collapsible, and easier to scan.**  
-
 <img alt="image" src="https://github.com/user-attachments/assets/20774752-d03a-4655-9e77-9164478bb55c" />
-
-**Headers and totals stay readable while only transaction rows scroll.**  
 
 <img alt="image" src="https://github.com/user-attachments/assets/66a47034-ed4b-4d9b-afd9-56a6a4a4acae" />
 
-**Real memo fields appear in transaction details, while blank values no longer create phantom badges.**  
-
 <img alt="image" src="https://github.com/user-attachments/assets/7c56f70b-c561-4484-9cb7-a2fe784597f8" />
-
-**Rule provenance popups now show the actual rule path more clearly.**
 
 <img alt="image" src="https://github.com/user-attachments/assets/9246e05c-3c2d-4e44-8cab-13a6a4cc4b5b" />
 
-## Coming next (not in this PR)
+## Stack
 
-Each is based on the one above it, so they want merging in this order:
+| # | Branch | PR | Description | Diff |
+|---|---|---|---|---|
+| 1 | `feature/globbing-documentation` | #98 | Glob pattern docs and CLI tests | [from main](https://github.com/terryaney/OpenSource.tally/compare/main...feature/globbing-documentation) |
+| 2 | `feature/report-json-determinism` | #99 | Deterministic report JSON | [from PR98](https://github.com/terryaney/OpenSource.tally/compare/feature/globbing-documentation...feature/report-json-determinism) · [from main](https://github.com/terryaney/OpenSource.tally/compare/main...feature/report-json-determinism) |
+| **3** | **`feature/ui-tweaks`** | **#100** | **Date filter, transaction details, per-txn tags** | **[from PR99](https://github.com/terryaney/OpenSource.tally/compare/feature/report-json-determinism...feature/ui-tweaks) · [from main](https://github.com/terryaney/OpenSource.tally/compare/main...feature/ui-tweaks)** |
+| 4 | `feature/charts-reimagined` | #101 | Reimagined charts and KPIs | [from PR100](https://github.com/terryaney/OpenSource.tally/compare/feature/ui-tweaks...feature/charts-reimagined) · [from main](https://github.com/terryaney/OpenSource.tally/compare/main...feature/charts-reimagined) |
+| 5 | `feature/merchant-composite-keys` | #102 | Composite merchant keys | [from PR101](https://github.com/terryaney/OpenSource.tally/compare/feature/charts-reimagined...feature/merchant-composite-keys) · [from main](https://github.com/terryaney/OpenSource.tally/compare/main...feature/merchant-composite-keys) |
+| 6 | `feature/categorization` | #103 | Categorization review file | [from PR102](https://github.com/terryaney/OpenSource.tally/compare/feature/merchant-composite-keys...feature/categorization) · [from main](https://github.com/terryaney/OpenSource.tally/compare/main...feature/categorization) |
 
-1. [`feature/charts-reimagined`](https://github.com/terryaney/OpenSource.tally/compare/feature/ui-tweaks...feature/charts-reimagined) — PR #TBD — reimagined chart layout, KPI tiles, chart docs
-2. [`feature/merchant-composite-keys`](https://github.com/terryaney/OpenSource.tally/compare/feature/charts-reimagined...feature/merchant-composite-keys) — PR #TBD — composite merchant identity so one merchant can carry multiple categorizations
-3. [`feature/categorization`](https://github.com/terryaney/OpenSource.tally/compare/feature/merchant-composite-keys...feature/categorization) — PR #TBD — categorization review file, `review:` rule flag, `inventory.yaml`
-
-Separately, [`feature/ci-repair`](https://github.com/terryaney/OpenSource.tally/compare/main...feature/ci-repair) — PR #TBD — is independent of this stack: `.github/workflows/` only.
+Independent: [`feature/ci-repair`](https://github.com/terryaney/OpenSource.tally/compare/main...feature/ci-repair) — #97 — fixes fork PR builds.

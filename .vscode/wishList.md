@@ -11,9 +11,11 @@
 
 ## Plans To Implement
 
-1. Plans\Info-Popup-All-Rules.md - Design a robust “multi-match popup” architecture that can show multiple rules that hit a transaction instead of only 1.
+1. Need documentation (and skill sample) especially for categorization
 
-2. Plans\Fixed-Spending-Cleanup.md - Better explicit control over fixed spending classification and reporting, including a new `fixed-budget` tag for baseline fixed costs using trailing complete-month average math.
+2. Plans\Info-Popup-All-Rules.md - Design a robust “multi-match popup” architecture that can show multiple rules that hit a transaction instead of only 1.
+
+3. Plans\Fixed-Spending-Cleanup.md - Better explicit control over fixed spending classification and reporting, including a new `fixed-budget` tag for baseline fixed costs using trailing complete-month average math.
 
 ## Bugs / Features
 
