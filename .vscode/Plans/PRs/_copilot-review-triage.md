@@ -329,7 +329,13 @@ Two things established while checking it:
   concern. What breaks is a user's own script parsing the old single-object shape across an upgrade.
 
 Chose a uniform envelope over "bare object when one match, wrapper when several" — polymorphic output
-means consumers branch forever instead of migrating once. Offered to revisit if David disagrees.
+means consumers branch forever instead of migrating once.
+
+> **Amended 2026-08-04:** the reply originally closed with an offer to revisit and keep the old
+> shape for the single-match case. That offer was withdrawn, because it cannot be honoured —
+> composite keys are the whole point of this rung, so one merchant name resolving to several
+> entries is now an ordinary outcome, and a bare object cannot express it. The offer also
+> contradicted the paragraph above it, which argues against polymorphic output.
 
 ### Phase 3 scope is now final
 
@@ -366,11 +372,15 @@ All 21 code issues fixed, 31 threads replied to and resolved, three PR bodies up
 Tests went 922 -> 1066. `feature/experimental` rebuilt from `fork-identity`; all six rungs
 force-pushed and each PR head verified against its local rung.
 
-### Three threads left unresolved on purpose
+### All 34 threads resolved
 
-`3714465526` (100-10), `3714465548` (100-7), `3714471871` (102-1) — the disclosure-only trio.
-All three already carry replies. 102-1 ends with an open offer to revisit the `explain --format
-json` envelope if David disagrees, and leaving the thread open is what keeps that offer visible.
+Including the disclosure-only trio — `3714465526` (100-10), `3714465548` (100-7),
+`3714471871` (102-1) — which already carried replies from phase 2 and only needed the flag.
+
+102-1's reply was amended at the same time to withdraw its closing offer to keep the old
+single-match shape. That offer could not be honoured: composite keys are the point of the rung,
+so one merchant name resolving to several entries is an ordinary outcome and a bare object
+cannot express it.
 
 ### Two findings that changed the answer
 
