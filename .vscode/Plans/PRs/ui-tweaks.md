@@ -25,6 +25,18 @@ Charts, Filtered View totals, and Section View percentages previously classified
 - Rule provenance popup improvements
 - Starter title changed to `Tally Spending Analysis`
 
+## Behavior changes
+
+Calling these out explicitly — they change what the report *does*, not just how it looks, and they aren't obvious from the diff:
+
+- **Chart clicks now toggle visibility instead of applying filters.** Clicking a category pie segment or a category-by-month bar no longer adds a category/date filter. This is deliberate, not a dropped handler. (#101 then reworks it further, making Spending by Category an explicit filter surface with tri-state legend chips.)
+- **Available months now come from `categoryView`**, so a month is no longer lost just because its merchant was excluded from every configured view.
+- **Section View percentages use a new denominator** — `filteredViewTotals.value.spending`, computed per transaction — instead of whole-merchant include/exclude decisions derived from merchant tag unions, which could drop ordinary spending from the denominator in mixed-tag datasets.
+- **Blank captured fields no longer render**, so the phantom `+1 Memo` indicator is gone.
+- **Rule `field:` directives that evaluate to empty now emit no field at all**, rather than a field with a blank value. A `field:` directive runs for every transaction its rule matches, so a merchant whose rule captures a memo previously attached an *empty* memo to every transaction that didn't have one — which is what produced a `+1` popup indicator on transactions with nothing in the popup. `0` and `False` are retained; only `None` and empty strings/lists/dicts are dropped. This affects the `+N` indicator, the dynamic `extra_fields` columns in CSV export, and report search — it does **not** affect rule matching, since `field.<name>` in a match expression reads captured columns from the data file, not values emitted by another rule's `field:` directive.
+
+**Mobile:** this is a locally generated HTML file and I expect nearly all use to be desktop/large display. Several pre-existing mobile issues remain and are deliberately out of scope here.
+
 ## Date Filtering
 
 <img alt="image" src="https://github.com/user-attachments/assets/b87f9eee-a2be-44f8-a596-86e95fb6291d" />

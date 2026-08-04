@@ -48,6 +48,15 @@ subcategory: Supplements
 
 **Data inventory** — `config/inventory.yaml` auto-registers every data file tally parses. Set `reviewComplete: true` to stop review rows appearing for that file. Tally only ever appends entries, never modifies or removes them.
 
+## Behavior changes on `tally up`
+
+- Writes three files and prints one status line when unknowns exist
+- **Can now exit non-zero on malformed `categorization.yaml` or `inventory.yaml`, where it previously always exited 0**
+- With `generate_categorization_file: false`, prints a STALE warning naming the file and when it was written, rather than leaving generated files on disk silently. It never deletes them — the file holds answers you may have typed, and a config toggle must not destroy data
+- `reviewComplete` is **review-scoped only and never gates parsing or analysis**. Every transaction always feeds report aggregates and `tally discover`; confirming a file only stops its review rows appearing
+
+`tally discover`, the HTML report, JSON/CSV/markdown output, analysis, and rule matching are otherwise unchanged.
+
 ## Compatibility
 
 - `review:` in `merchants.rules` will not load on older tally builds (parser hard-fails on unknown properties — by design)

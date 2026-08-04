@@ -14,6 +14,8 @@ Title: Make report JSON deterministic [2/6]
 
 Two source files, one test file. No rule-engine change, no change to HTML rendering or any other export format.
 
+**Accepted consequence:** the rule info popup now lists a rule's tags alphabetically rather than in rule-declaration order — consistent with the top-level tags list, which was already alphabetical.
+
 ## Stack
 
 | # | Branch | PR | Description | Diff |
