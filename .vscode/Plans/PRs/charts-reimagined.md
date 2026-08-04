@@ -27,6 +27,20 @@ Full walkthrough: [charts.html](https://htmlpreview.github.io/?https://raw.githu
 - `toggleCategoryChip` / `applyCategorySelection` — `activeFilters` is the single source of truth; no separate hidden-set
 - `applyCategoryChartFastVisibility` — chip toggles flip dataset visibility on the live Chart instance instead of rebuilding it
 
+## Behavior changes
+
+Added while addressing review feedback. These change what the charts *say*, not just how they look.
+
+- **Fewer merchants are classified as monthly recurring.** Monthly inference tested only how many distinct months a merchant appeared in, against a threshold derived from how many distinct months the *whole data set* covered. That measures presence, not spread, and it made one merchant's classification depend on unrelated merchants' data. A merchant now also has to be dense over its own first-to-last span, so three charges spread across twenty-five months can no longer read as monthly.
+
+  The failure this fixes: with a data set as sparse as the merchant — three Januaries in a January-only export — an annual premium cleared the old threshold and was booked as a *monthly* cost, twelve times its real value, in both Fixed vs Variable and the Fixed Spending Audit. On a dense data set the old check was already correct, so most reports will not move.
+
+  It is a pure tightening: it can only remove false `monthly` classifications, never add one. `fixed`/`variable` rule tags still override the inference entirely.
+
+- **Chart panel headings are buttons.** The collapse toggles were click handlers on `<h3>`, so they were unreachable by keyboard across all six panels. The heading stays a heading — document navigation is unchanged — with a chrome-stripped button inside it. Rendering is unchanged.
+
+- **A disabled legend chip is genuinely disabled.** The "Other" chip carried a `disabled` class that removed its click listener but left it focusable and announced as an enabled control.
+
 ## Stack
 
 | # | Branch | PR | Description | Diff |

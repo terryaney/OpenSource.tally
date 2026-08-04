@@ -57,6 +57,16 @@ subcategory: Supplements
 
 `tally discover`, the HTML report, JSON/CSV/markdown output, analysis, and rule matching are otherwise unchanged.
 
+### Added while addressing review feedback
+
+- **Fewer transactions surface for review.** `review:` was taken from every rule whose expression matched, including rules that lost the specificity contest and set nothing — so a broad catch-all flagged `review:` pulled in every transaction a more specific rule had already categorized, defeating the specific-beats-general pattern in `guide.html`. It now comes from the rules that actually applied: the category, merchant and subcategory winners, plus the rules that contributed tags. Tag-only review rules still surface.
+- **Resolving the last row rewrites `categorization.yaml` empty** instead of returning early and leaving the previous rows on disk, where an agent would read answers that had already been applied. The file is still never deleted. The empty list is written explicitly as `unknowns: []`, because a bare `unknowns:` parses as null and would be rejected on the next read.
+- **An unrecognized field name is now an error**, naming the field and suggesting the intended one. Only `PRESERVED_FIELDS` survive a regeneration, so a typo such as `useRules:` was not applied and was then silently dropped when the file was next written — the answer disappeared with no sign it had been there. This matches how `inventory.yaml` already treats unknown keys.
+- **`useRule` labels can now carry a match expression.** Two rules can agree on merchant, category, subcategory and tags while matching different things; their labels were identical, so `useRule` named a rule that could not be identified. Where labels collide, and only there, the expression is appended. Unique labels are untouched.
+- **Transaction identity is 64 bits, not 32.** At 32 bits a collision was around 1% likely by 9,000 distinct transactions, and a collision is indistinguishable from a genuine duplicate — the two rows were ordinalized, their keys shifted, and a stored answer could reattach to the wrong transaction.
+
+  **This changes every `key`, so an in-flight `categorization.yaml` will not reattach its answers.** The old key is a strict prefix of the new one, so migrating an existing file is mechanical. No compatibility shim is included, since this branch has never shipped.
+
 ## Compatibility
 
 - `review:` in `merchants.rules` will not load on older tally builds (parser hard-fails on unknown properties — by design)
@@ -65,7 +75,9 @@ subcategory: Supplements
 
 ## Testing
 
-1019 tests pass. No pre-existing test was modified. New test files: `test_categorization.py`, `test_categorization_schema.py`, `test_categorization_review.py`, `test_inventory.py`.
+1066 tests pass across the stack. New test files: `test_categorization.py`, `test_categorization_schema.py`, `test_categorization_review.py`, `test_inventory.py`.
+
+One pre-existing test in this PR was modified while addressing review feedback: `test_review_rows_persist_across_runs_until_stamped` asserted `written is False` after the last review row was stamped, which was the early-return behaviour described above. It now asserts the file is rewritten empty and can be read back.
 
 ## Stack
 

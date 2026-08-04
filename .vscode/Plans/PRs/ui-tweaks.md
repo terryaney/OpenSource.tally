@@ -37,6 +37,17 @@ Calling these out explicitly — they change what the report *does*, not just ho
 
 **Mobile:** this is a locally generated HTML file and I expect nearly all use to be desktop/large display. Several pre-existing mobile issues remain and are deliberately out of scope here.
 
+### Added while addressing review feedback
+
+- **Section percentages changed value.** The denominator moved to a spending-only basis (above) but the numerator stayed a raw sum, so a section holding income, investment or transfers divided one basis by the other and could exceed 100%. Sections and categories now carry a spending-only subtotal computed with the same per-transaction classification, and the section percentage uses it. The per-merchant percentage *inside* a category is unchanged — both its halves are raw totals, so it was already self-consistent.
+- **An excluded date chip is no longer flipped to an inclusion.** The date popover edits include-mode filters only: it will not rehydrate an excluded month or range into the pending set, and Apply no longer replaces chips it does not own.
+- **Dates the calendar does not have are rejected.** `2/31/2026`, month 13 and `99/99/2026` previously parsed and produced filter chips that could never match a transaction.
+- **A malformed date range in the URL hash no longer hangs the report.** `#+dr:garbage..garbage` walked to the string `NaN-NaN`, which compares less than the malformed end value forever, growing an array without bound until the tab died.
+- **`report_fields` is validated.** A bare `report_fields: memo` was iterated character by character and treated as four capture names; an empty `report_fields:` raised `TypeError`. A bare string is now accepted as the single name it plainly means, an empty value means none, and anything else is rejected by name.
+- **The report title is escaped and coerced.** It reached both the loading shell's markup and the embedded `spendingData` script unescaped, and a non-string value such as `title: 2025` raised `TypeError`. The title is now resolved once and stored back onto `spendingData`, so the static shell and the mounted app can no longer disagree — previously an untitled report visibly renamed itself on mount, because the two fallbacks were different strings.
+
+The `</` escaping applied to the embedded JSON covers every string in the payload, not just the title. Merchant descriptions come from user CSVs and had the same exposure, so this is not new to this branch.
+
 ## Date Filtering
 
 <img alt="image" src="https://github.com/user-attachments/assets/b87f9eee-a2be-44f8-a596-86e95fb6291d" />

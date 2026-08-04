@@ -1,6 +1,7 @@
 # Copilot review triage — PRs #98–#103
 
-**Status:** Phase 1 (harvest) complete — 2026-08-04. Phase 2 (triage) not started.
+**Status: COMPLETE — 2026-08-04.** All four phases done. See *Phases 3 and 4 — done* at the
+bottom for what shipped; the rest of this document is the working record of how it got there.
 
 Working document for addressing the Copilot review comments across the six-rung stack.
 A new session should be able to start here and need nothing else except `branches.md`.
@@ -346,3 +347,66 @@ means consumers branch forever instead of migrating once. Offered to revisit if 
 
 Every disclosure-only item is now answered on its thread and reflected in the PR body on GitHub —
 nothing in the list above is waiting on prose.
+
+---
+
+## Phases 3 and 4 — done, 2026-08-04
+
+All 21 code issues fixed, 31 threads replied to and resolved, three PR bodies updated.
+
+| Rung | PR | Code issues | Fix commit |
+|---|---|---|---|
+| `feature/globbing-documentation` | #98 | 1 | `1650e5b` |
+| `feature/report-json-determinism` | #99 | 0 (restacked only) | `1f323d9` |
+| `feature/ui-tweaks` | #100 | 10 | `0590b28` |
+| `feature/charts-reimagined` | #101 | 4 | `76a1b73` |
+| `feature/merchant-composite-keys` | #102 | 0 code; commit amended to adapt tests | `69176f8` |
+| `feature/categorization` | #103 | 6 | `33644a2` |
+
+Tests went 922 -> 1066. `feature/experimental` rebuilt from `fork-identity`; all six rungs
+force-pushed and each PR head verified against its local rung.
+
+### Three threads left unresolved on purpose
+
+`3714465526` (100-10), `3714465548` (100-7), `3714471871` (102-1) — the disclosure-only trio.
+All three already carry replies. 102-1 ends with an open offer to revisit the `explain --format
+json` envelope if David disagrees, and leaving the thread open is what keeps that offer visible.
+
+### Two findings that changed the answer
+
+**100-1 was wider than reported.** Copilot flagged the title reaching `<title>` and `<h1>`
+unescaped. It also reaches `window.spendingData`, which is embedded *inside* a `<script>`
+element, so a title containing `</script>` closed that element no matter what the shell did.
+A test written for the reported bug is what caught it. The `</` -> `<\/` escaping now covers the
+whole payload, which also closes the same hole for merchant descriptions read from user CSVs —
+pre-existing on `main`, and disclosed as such in #100's body.
+
+**101-2's stated scenario does not reproduce.** "A merchant charged every January for 3 years is
+classified monthly" is false on a normal data set: `num_months` is itself a count of distinct
+populated months, so a dense data set puts the threshold at 18 and the merchant fails it
+correctly. It reproduces only when the data set is as sparse as the merchant — three Januaries
+in a January-only export. The underlying complaint was right even though the example was not,
+and the fix targets the real defect: `months_active` measures presence, not spread.
+
+Both are the calibration note's pattern holding: **location trustworthy, specifics not.**
+
+### Process failure worth remembering
+
+The plan was to commit fixes on rungs 98, 100 and 101, then restack once from rung 98.
+**That silently dropped the rung-100 and rung-101 commits.** Committing on a lower rung puts
+that commit off `<tip>`'s ancestry, so a rebase based below it never replays it — exit 0, no
+conflict, and the rung simply absent from `Updated the following refs`. Caught only by grepping
+the tip for a marker string from each fix.
+
+Recovered by tagging the stranded commits, resetting to the recorded tips, and redoing it one
+rebase per modified rung. That surfaced two genuine conflicts the batched run had hidden.
+Written up in `branches.md` -> *Editing any lower `<rung>`* -> step 2, commit `8910cf1`.
+
+### Local consequence of 103-6
+
+Widening the transaction key invalidates any existing `categorization.yaml`. The live file at
+`C:\BTR\TallySpending\tally\config` was migrated in place — 36 keys remapped, 21 answers
+preserved, backup at `categorization.yaml.bak`. The old key is a strict prefix of the new one,
+so the mapping is exact; it was computed from the real transactions rather than by extending a
+prefix, because ordinals can legitimately change when rows that collided at 32 bits no longer
+collide at 64.

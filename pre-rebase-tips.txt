@@ -1,0 +1,7 @@
+feature/categorization                   ae97423
+feature/charts-reimagined                f04da2f
+feature/ci-repair                        c767518
+feature/globbing-documentation           1650e5b
+feature/merchant-composite-keys          af84b33
+feature/report-json-determinism          b0b151f
+feature/ui-tweaks                        2dfb795
