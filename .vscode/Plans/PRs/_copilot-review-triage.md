@@ -13,9 +13,9 @@ A new session should be able to start here and need nothing else except `branche
 | Phase | What | Status |
 |---|---|---|
 | 1 | Harvest all comments, attribute each to the rung that **owns the line** | done — table below |
-| 2 | Triage each issue: real bug / cosmetic / wrong / already-handled | **not started** |
-| 3 | Fix bottom-up, one pass per rung | not started |
-| 4 | Reply to threads, resolve | not started |
+| 2 | Triage each issue: real bug / cosmetic / wrong / already-handled | done — 3 closed as disclosure-only |
+| 3 | Fix bottom-up, one pass per rung | done — 21 issues, 4 rungs |
+| 4 | Reply to threads, resolve | done — 31 replied and resolved, 3 left open on purpose |
 
 **34 review comments → ~25 distinct issues** (the stack's cumulative diffs made Copilot report several issues once per PR).
 
