@@ -181,6 +181,18 @@ git rev-parse --short <rung>                    # <rung-before> — write this d
 
 **2. Edit and replay.** Which command you use depends on whether you **added** a commit or **amended** the existing one. `<rung>` is where you committed; `<tip>` tells the rebase how far up to replay. Every rung between them moves too.
 
+> **⚠ One rung per rebase. Do not batch several rungs into one run.** The temptation, with fixes to make on rungs 1, 3 and 4, is to commit on all three and then rebase once from the lowest — one replay instead of three. **It silently drops the upper commits.**
+>
+> The moment you commit on rung 3, that commit is a *side branch*: rung 4 was built on rung 3's **old** tip, so your new commit is not an ancestor of `<tip>`. A rebase only replays what is reachable from `<tip>`, so it replays rung 3's *old* commits, leaves yours behind, and — the part that hides it — **does not list that rung under `Updated the following refs`**. Exit code 0, no conflict, no warning.
+>
+> That is exactly why 2a and 2b both name `<rung>` as the rebase **base**: the base is the one commit guaranteed to carry your edit. Batching moves the base below the edits, and everything above the lowest one falls out.
+>
+> **Symptom:** the `Updated the following refs with --update-refs:` list is missing a rung you committed on. Check that list every time — it is the cheapest possible confirmation, and it is printed whether you read it or not.
+>
+> **If you already did it:** nothing is lost. Tag each stranded fix commit (`git tag fix-rungN <sha>`), reset every rung ref to the values from step 1, reset the modified rungs to their *pre-edit* tips so all refs lie on one chain, then work bottom-up — restack once for the lowest rung, then for each rung above it `git checkout <rung>; git cherry-pick fix-rungN; git rebase --update-refs <rung> <tip>`. Expect the conflicts the batched run never showed you; they were always there.
+
+**Cost, so the temptation is priced honestly:** *n* edited rungs means *n* rebases and *n* verifies. That is the real price of editing low in the stack, and it is the argument for batching all of a **single** rung's fixes into one pass — not for batching across rungs.
+
 **2a. You added a commit.** The rung's old tip is still an ancestor of your new one, so `<rung>..<tip>` contains only the rungs above:
 
 ```powershell
@@ -210,7 +222,15 @@ git diff <recorded-tip> <tip> --stat
 ```
 
 **Expect:** exactly the change you just made, nothing else.
-**STOP if:** anything else appears. The rebase dropped or resurrected something.
+**STOP if:** anything else appears, **or if part of your edit is missing.** The rebase dropped or resurrected something.
+
+A missing edit is the failure this step exists for, and it is easy to skim past — an empty-ish diff reads like success. If the change was a code edit, confirm it by content rather than by eye:
+
+```powershell
+git show <tip>:<path> | Select-String -Pattern '<a distinctive string from your fix>' -SimpleMatch
+```
+
+Do **not** pass `[regex]::Escape(...)` to `-SimpleMatch`. `Regex.Escape` escapes spaces to `\ `, so any multi-word pattern silently returns zero matches and a present fix reports as missing.
 
 **4. Absorb and push.**
 
