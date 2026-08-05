@@ -4,6 +4,32 @@ Local workflow documentation for the tally fork.
 
 Lives on the `playbook` branch — an orphan branch with no shared history with `main`, permanently checked out in the `tally-playbook` worktree. It merges nowhere, and `git merge playbook` refuses by default, so nothing here reaches an upstream PR by accident. See *Local machine setup*.
 
+---
+
+**Contents**
+
+- [Current Inventory](#current-inventory)
+  - [Independent branches](#independent-branches)
+- [Repository Structure](#repository-structure)
+- [Playbook](#playbook)
+  - [Plan a feature with an AI agent](#plan-a-feature-with-an-ai-agent)
+  - [New feature](#new-feature)
+  - [Work on an existing rung or independent branch](#work-on-an-existing-rung-or-independent-branch)
+  - [Submit PRs](#submit-prs)
+  - [Upstream main moved](#upstream-main-moved)
+  - [Include someone else's upstream PR or branch](#include-someone-elses-upstream-pr-or-branch)
+  - [My PR was rejected](#my-pr-was-rejected)
+  - [Squash a rung](#squash-a-rung)
+  - [Rebuild feature/experimental](#rebuild-featureexperimental)
+  - [When to abandon upstream](#when-to-abandon-upstream)
+- [Local machine setup](#local-machine-setup)
+  - [The two worktrees](#the-two-worktrees)
+  - [What is deliberately never committed](#what-is-deliberately-never-committed)
+  - [⚠ Failure mode: ignored files are silently clobbered](#-failure-mode-ignored-files-are-silently-clobbered)
+  - [What a fresh clone loses](#what-a-fresh-clone-loses)
+
+---
+
 ## Current Inventory
 
 Row order = stack order, bottom to top. Each rung's base is the row above it.
@@ -55,7 +81,8 @@ main (based on upstream/main)
  │                       └── feature/merchant-composite-keys 			rung 5
  │                             └── feature/categorization   			rung 6  ← stack tip
  │
- ├── feature/ci-repair                                					independent (shares no file with any rung)
+ ├── feature/ci-repair                                					independent 
+ │																		(shares no file with any rung)
  │
  ├── feature/experimental = main
  │                        + fork-identity commit
@@ -93,12 +120,18 @@ Two rules for those handoffs, everywhere they appear: hand over the **specific c
 - [Plan a feature with an AI agent](#plan-a-feature-with-an-ai-agent)
 - [New feature](#new-feature)
 - [Work on an existing rung or independent branch](#work-on-an-existing-rung-or-independent-branch)
+  - [Editing `<tip>` or an independent branch](#editing-tip-or-an-independent-branch)
+  - [Editing any lower `<rung>`](#editing-any-lower-rung)
+  - [Test a local build without committing](#test-a-local-build-without-committing)
 - [Submit PRs](#submit-prs)
-- [Upstream main moved](#upstream-main-moved) — also covers **my PR was accepted upstream**
+- [Upstream main moved](#upstream-main-moved)
 - [Include someone else's upstream PR or branch](#include-someone-elses-upstream-pr-or-branch)
 - [My PR was rejected](#my-pr-was-rejected)
 - [Squash a rung](#squash-a-rung)
 - [Rebuild feature/experimental](#rebuild-featureexperimental)
+  - [1. Merge or rebuild?](#1-merge-or-rebuild)
+  - [2. Inventory the branch before you discard it](#2-inventory-the-branch-before-you-discard-it)
+  - [3. Rebuild](#3-rebuild)
 - [When to abandon upstream](#when-to-abandon-upstream)
 
 ## Plan a feature with an AI agent
