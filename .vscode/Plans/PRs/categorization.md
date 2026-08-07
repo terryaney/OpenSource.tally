@@ -42,7 +42,7 @@ subcategory: Supplements
 
 **Hints file** — `config/categorization.hints.yaml` provides deterministic match suggestions (difflib against your rules; no AI, no network). Regenerated every run, safe to delete.
 
-**Schema** — `categorization-schema.json` drives editor autocomplete and hover.
+**Schema** — `categorization-schema.json` drives editor autocomplete and hover. `useRule`, `edits.category` and `edits.tags` all complete from your own rules. One thing to know before trying it: VS Code caches the schema, so a run that adds rules keeps completing from the previous list until Ctrl+Shift+P → "Developer: Reload Window". That is the extension ([redhat-developer/vscode-yaml#309](https://github.com/redhat-developer/vscode-yaml/issues/309)), not tally — the generated file's header and `guide.html` both say so.
 
 **`review: true` rule flag** — marks a rule whose categorizations you want to eyeball. Matched transactions appear in a `reviews:` list in `categorization.yaml` with their current categorization. Setting `reviewComplete` on the data file in `inventory.yaml` closes them out.
 
@@ -67,6 +67,11 @@ subcategory: Supplements
 
   **This changes every `key`, so an in-flight `categorization.yaml` will not reattach its answers.** The old key is a strict prefix of the new one, so migrating an existing file is mechanical. No compatibility shim is included, since this branch has never shipped.
 
+### Added since the last review pass
+
+- **`edits.category` now completes.** It is written as an `anyOf` of an enum branch and an open string branch, which looks redundant but isn't: `examples` is the keyword that suggests values without restricting them, but the redhat YAML server does not treat it as a completion source, so Ctrl+Space had nothing to offer; a plain enum completes but reports a category you are inventing as invalid. A bare `category: ` parses as null and the enum branch is the only one that accepts null, so the server narrows to it and completes from it, while the open branch keeps any other value valid. Suggestions are the `Category / Subcategory` paths plus the bare category, since `Subcategory` is its own column in `merchants.rules` and may be empty.
+- **The generated file's header is a field-usage reminder**, not a description of how an agent consumes the file. Editing hints (`useRule`/`newRule`/`edits`, what each one does to your data, the schema-cache reload) stay; the rest lives in `guide.html`.
+
 ## Compatibility
 
 - `review:` in `merchants.rules` will not load on older tally builds (parser hard-fails on unknown properties — by design)
@@ -75,7 +80,7 @@ subcategory: Supplements
 
 ## Testing
 
-1066 tests pass across the stack. New test files: `test_categorization.py`, `test_categorization_schema.py`, `test_categorization_review.py`, `test_inventory.py`.
+1067 tests pass across the stack. New test files: `test_categorization.py`, `test_categorization_schema.py`, `test_categorization_review.py`, `test_inventory.py`.
 
 One pre-existing test in this PR was modified while addressing review feedback: `test_review_rows_persist_across_runs_until_stamped` asserted `written is False` after the last review row was stamped, which was the early-return behaviour described above. It now asserts the file is rewritten empty and can be read back.
 
