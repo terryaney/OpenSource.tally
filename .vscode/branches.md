@@ -24,6 +24,7 @@ Lives on the `playbook` branch — an orphan branch with no shared history with 
   - [When to abandon upstream](#when-to-abandon-upstream)
 - [Local machine setup](#local-machine-setup)
   - [The two worktrees](#the-two-worktrees)
+  - [Copilot review settings baseline](#copilot-review-settings-baseline)
   - [What is deliberately never committed](#what-is-deliberately-never-committed)
   - [⚠ Failure mode: ignored files are silently clobbered](#-failure-mode-ignored-files-are-silently-clobbered)
   - [What a fresh clone loses](#what-a-fresh-clone-loses)
@@ -802,6 +803,18 @@ Both are opened together via `C:\BTR\Extensibility\Tally.code-workspace` (a VS C
 >
 > - **`git merge playbook` fails by default**: `fatal: refusing to merge unrelated histories`. Accidental propagation into a rung is blocked by git, not by remembering a rule. Deliberate propagation is still possible via `--allow-unrelated-histories` or `git cherry-pick`; don't.
 > - **`git log main..playbook` returns every commit on `playbook`**, since none are reachable from `main`. It is valid, just useless — don't reach for it to compare the two.
+
+## Copilot review settings baseline
+
+These settings are intentionally disabled to keep AI review behavior out of this fork's workflow surface:
+
+- **Fork repository settings → Copilot code review → General settings**
+  - `Use custom instructions when reviewing pull requests` = **Off**
+  - `Allow Copilot to use MCP tools when reviewing pull requests` = **Off**
+- **GitHub account settings → Copilot code review**
+  - `Automatic Copilot code review` = **Disabled**
+
+Treat these as part of the foundational baseline (`fork-identity-2`) when rebuilding from scratch or troubleshooting unexpected AI review activity.
 
 ## What is deliberately never committed
 
