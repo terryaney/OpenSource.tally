@@ -86,6 +86,7 @@ main (based on upstream/main)
  │
  ├── feature/experimental = main
  │                        + fork-identity commit
+ │                        + fork-identity-2 commit
  │                        + merge(stack tip)
  │                        + merge(each independent branch)
  │
@@ -95,7 +96,7 @@ main (based on upstream/main)
 Three rules the whole document follows from:
 
 1. **Every feature branch is based on the rung below it**, never on `main` — *unless it shares no file with any rung*, in which case it sits beside the stack. See *Independent branches*.
-2. **`feature/experimental` is `main` + one fork-identity commit + a merge of the stack tip.** The only other things ever merged into it are `contrib/*` and independent branches — see *Include someone else's upstream PR or branch* and *Independent branches*.
+2. **`feature/experimental` is `main` + the foundational commits (`fork-identity`, then `fork-identity-2`) + a merge of the stack tip.** The only other things ever merged into it are `contrib/*` and independent branches — see *Include someone else's upstream PR or branch* and *Independent branches*.
 3. **PRs are submitted bottom-up**, each declaring the rung it sits on. Batch them as much as possible given frequency upstream reviews; do not serialize.
 
 ---
@@ -690,7 +691,7 @@ Then [rebuild `feature/experimental`](#rebuild-featureexperimental) — the rung
 
 ## Rebuild feature/experimental
 
-`feature/experimental` is `main` + the `fork-identity` commit + a merge of the stack tip + a merge of each independent and `contrib/*` branch. It is **derived, never authored** — nothing is written here directly, which is what makes throwing it away and re-deriving it safe.
+`feature/experimental` is `main` + the foundational commits (`fork-identity`, then `fork-identity-2`) + a merge of the stack tip + a merge of each independent and `contrib/*` branch. It is **derived, never authored** — nothing is written here directly, which is what makes throwing it away and re-deriving it safe.
 
 Read top to bottom. Step 1 decides whether you need this play at all.
 
@@ -730,13 +731,13 @@ A rebuild re-derives from `fork-identity` and knows nothing about what has been 
 
 ```powershell
 git log main..feature/experimental --no-merges --oneline
-#   → rung commits + independent-branch commits + exactly one `fork-identity` commit, nothing else
+#   → rung commits + independent-branch commits + exactly the two foundational commits (`fork-identity`, `fork-identity-2`), nothing else
 
 git log main..feature/experimental --merges --oneline
 #   → one merge per absorb since the last rebuild, plus one per independent and contrib/* branch
 ```
 
-**From the first list:** anything that is not a rung commit, an independent-branch commit, or the `fork-identity` commit is work committed to the wrong branch. Move it to a rung now, or the rebuild loses it.
+**From the first list:** anything that is not a rung commit, an independent-branch commit, or one of the foundational commits (`fork-identity`, `fork-identity-2`) is work committed to the wrong branch. Move it to a rung now, or the rebuild loses it.
 
 **From the second list:** write down every independent and `contrib/*` merge — step 3 replays each one by hand. This list is normally several merges, not one; every *New feature* and *Editing `<tip>`* absorb adds another merge of the stack tip, and they accumulate until a rebuild collapses them. What you are hunting for is a merge that is none of stack-tip, independent, or `contrib/*` — something absorbed into the build branch that shouldn't have been.
 
@@ -746,6 +747,7 @@ git log main..feature/experimental --merges --oneline
 
 ```powershell
 git checkout -B feature/experimental fork-identity
+git merge fork-identity-2
 git merge <tip>
 git merge <each independent branch>                         # from step 2 + the inventory line
 git merge --no-ff <each contrib/* branch still in play>     # rare; usually none
@@ -753,15 +755,15 @@ uv run pytest tests/ --tb=no -q
 git push --force-with-lease origin feature/experimental
 ```
 
-> **The independent-branch merges are not optional.** The rebuild knows nothing about them, so anything left out silently disappears from the build branch. `feature/ci-repair` carries the workflow changes that `Experimental Build` itself runs on — drop it and you stop testing them.
+> **The independent-branch merges are not optional.** The rebuild knows nothing about them, so anything left out silently disappears from the build branch. Separately, the foundational base now has two commits; skipping `fork-identity-2` drops your workflow hardening from every rebuild.
 
 **Merge order does not matter.** Merges are content-commutative, so tip-first and independent-first land on the same tree. The order above is convention only: the bulk lands first, so a conflict in a small independent branch surfaces on its own rather than buried inside a large merge.
 
 > Use `checkout -B`, not `git reset --hard <hash>`: it resolves the tag rather than a hash you have to look up, and it names the branch, so a failed `git checkout` on the line above cannot redirect the reset onto whatever branch you were actually standing on.
 
 > **🤖 Work with AI Agent if...**
-> - `git merge <tip>` conflicts against the `fork-identity` commit. It shouldn't; the only overlap is `dev-build.yml`, and it is conflict-free as long as the `build-rc`/`rc-artifacts` naming stayed upstream's. A conflict there means that rename crept back in.
-> - `fork-identity` doesn't resolve. Find it with `git log --oneline --grep='Foundational Commit' feature/experimental` and re-tag before rebuilding.
+> - `git merge <tip>` conflicts against the foundational base (`fork-identity` + `fork-identity-2`). It shouldn't; the only overlap is `dev-build.yml`, and it is conflict-free as long as the `build-release`/`release-artifacts` naming stayed upstream's.
+> - A foundational tag doesn't resolve. Recreate whichever tag is missing (`fork-identity` and/or `fork-identity-2`) before rebuilding.
 
 ## When to abandon upstream
 
@@ -830,22 +832,26 @@ git config rerere.enabled true
 git remote add upstream https://github.com/davidfowl/tally
 # 5. rebase.updateRefs so plain `git rebase` doesn't strand mid-stack refs
 git config rebase.updateRefs true
-# 6. the fork-identity tag — clones do NOT fetch tags that were never pushed
+# 6. foundational tags — clones do NOT fetch tags that were never pushed
 git fetch origin --tags
-git tag -l fork-identity                     # must print; Rebuild feature/experimental depends on it
+git tag -l fork-identity                     # must print
+git tag -l fork-identity-2                   # must print
 ```
 
-If `fork-identity` is missing, recreate and push it so the next clone has it. The commit's subject is **`Foundational Commit for my fork`** — match on that, not on a `fork:` prefix, which nothing in this repo uses:
+If a foundational tag is missing, recreate and push it so the next clone has it. Match the commit subjects, not a `fork:` prefix (this repo does not use one):
 
 ```powershell
 git tag fork-identity $(git log --format='%H' --grep='Foundational Commit' feature/experimental | Select-Object -Last 1)
+git tag fork-identity-2 $(git log --format='%H' --grep='Foundational Changes 2' feature/experimental | Select-Object -Last 1)
 git push origin fork-identity
+git push origin fork-identity-2
 ```
 
 Verify before relying on it — an empty `$(...)` silently tags `HEAD`, which is the wrong commit and looks fine:
 
 ```powershell
 git log -1 --format='%h %s' fork-identity     # must print the Foundational Commit
+git log -1 --format='%h %s' fork-identity-2   # must print Foundational Changes 2
 ```
 
 `C:\BTR\Extensibility\Tally.code-workspace` and `.claude/settings.local.json` (which grants agents access to `../tally-playbook/` via `permissions.additionalDirectories`) are also untracked — recreate or restore them from backup.
